@@ -205,11 +205,83 @@
     }
 
     #file-button {
-      background-color: #007bff;
+      background-color: #28a745;
     }
 
     #file-button:hover {
-      background-color: #0056b3;
+      background-color: #1e7e34;
+    }
+
+    #audio-button {
+      background-color: #dc3545;
+    }
+
+    #audio-button:hover {
+      background-color: #c82333;
+    }
+
+    #audio-button.recording {
+      background-color: #dc3545;
+      animation: pulse 1s infinite;
+    }
+
+    .recording-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background-color: #dc3545;
+      color: white;
+      border-radius: 20px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .recording-pulse {
+      width: 12px;
+      height: 12px;
+      background-color: white;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    .attachments-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #2a2a2a;
+      border-radius: 8px;
+    }
+
+    .attachment-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background-color: #333;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .attachment-item img {
+      width: 30px;
+      height: 30px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+
+    .attachment-item .remove-attachment {
+      cursor: pointer;
+      color: #dc3545;
+      font-weight: bold;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
     }
 
     @media (max-width: 768px) {
@@ -248,10 +320,16 @@
       <div class="chat-input-area">
         <div class="chat-input">
           <input type="text" id="chat-input" placeholder="Type your message..." />
-          <input type="file" id="file-input" accept="image/*,audio/*,.pdf,.txt,.doc,.docx" style="display: none;" />
+          <input type="file" id="file-input" accept="image/*,audio/*,.pdf,.txt,.doc,.docx" style="display: none;" multiple />
           <button id="file-button" title="Attach file">📎</button>
+          <button id="audio-button" title="Record audio">🎤</button>
           <button id="send-button">Send</button>
         </div>
+        <div id="recording-indicator" class="recording-indicator" style="display: none;">
+          <div class="recording-pulse"></div>
+          <span>Recording... Click to stop</span>
+        </div>
+        <div id="attachments-preview" class="attachments-preview" style="display: none;"></div>
       </div>
     </div>
   </div>

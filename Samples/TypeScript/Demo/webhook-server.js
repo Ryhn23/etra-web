@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const WebSocket = require('ws');
 const http = require('http');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,6 +12,20 @@ const wss = new WebSocket.Server({ server });
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Multer configuration for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 10 // Maximum 10 files
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept all file types for now
+    cb(null, true);
+  }
+});
 
 // Store connected clients
 const clients = new Set();
@@ -75,6 +90,55 @@ app.post('/webhook/chat-response', (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to process webhook',
+      error: error.message
+    });
+  }
+});
+
+// Webhook endpoint to receive mixed content (text + files)
+app.post('/webhook/mixed-content', upload.any(), (req, res) => {
+  try {
+    console.log('Received mixed content webhook from n8n');
+    console.log('Files received:', req.files ? req.files.length : 0);
+    console.log('Body:', req.body);
+
+    const messageData = {
+      id: req.body.messageId || generateMessageId(),
+      timestamp: req.body.timestamp || new Date().toISOString(),
+      type: req.body.messageType || 'mixed',
+      content: req.body.content || '',
+      userId: req.body.userId || 'system',
+      sender: 'user',
+      files: req.files || [],
+      metadata: {
+        fileCount: req.files ? req.files.length : 0,
+        hasText: !!(req.body.content && req.body.content.trim()),
+        ...req.body.metadata
+      }
+    };
+
+    // Log file details
+    if (req.files && req.files.length > 0) {
+      req.files.forEach((file, index) => {
+        console.log(`File ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
+      });
+    }
+
+    // For now, just acknowledge receipt - you can process files here
+    console.log('Mixed content processed successfully');
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Mixed content received and processed',
+      messageId: messageData.id,
+      filesProcessed: req.files ? req.files.length : 0
+    });
+
+  } catch (error) {
+    console.error('Error processing mixed content webhook:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to process mixed content',
       error: error.message
     });
   }
