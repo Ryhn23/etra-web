@@ -18,7 +18,7 @@ const CONFIG = {
 };
 
 // Message types
-type MessageType = 'text' | 'image' | 'file' | 'audio';
+type MessageType = 'text' | 'image' | 'file' | 'audio' | 'command';
 
 interface MessageData {
   id: string;
@@ -32,6 +32,12 @@ interface MessageData {
   fileType?: string;
   metadata?: any;
   originalMessageId?: string;
+  files?: Array<{
+    name: string;
+    type: string;
+    size: number;
+    data: string;
+  }>;
 }
 
 /**
@@ -68,38 +74,108 @@ window.addEventListener(
 function initializeChat(): void {
   const chatInput = document.getElementById('chat-input') as HTMLInputElement;
   const sendButton = document.getElementById('send-button') as HTMLButtonElement;
-  const fileButton = document.getElementById('file-button') as HTMLButtonElement;
-  const audioButton = document.getElementById('audio-button') as HTMLButtonElement;
+  const toolsButton = document.getElementById('tools-button') as HTMLButtonElement;
+  const attachmentBtn = document.getElementById('attachment-btn') as HTMLButtonElement;
+  const audioBtn = document.getElementById('audio-btn') as HTMLButtonElement;
   const fileInput = document.getElementById('file-input') as HTMLInputElement;
   const chatMessages = document.getElementById('chat-messages') as HTMLElement;
 
-  if (!chatInput || !sendButton || !fileButton || !audioButton || !fileInput || !chatMessages) {
-    console.error('Chat elements not found');
+  if (!chatInput || !sendButton || !toolsButton || !attachmentBtn || !audioBtn || !fileInput || !chatMessages) {
+    console.error('Chat elements not found:', {
+      chatInput: !!chatInput,
+      sendButton: !!sendButton,
+      toolsButton: !!toolsButton,
+      attachmentBtn: !!attachmentBtn,
+      audioBtn: !!audioBtn,
+      fileInput: !!fileInput,
+      chatMessages: !!chatMessages
+    });
     return;
   }
 
   // Initialize WebSocket connection
   initializeWebSocket(chatMessages);
 
-  // Initialize audio recording
-  initializeAudioRecording(audioButton, chatMessages);
 
-  // Send message on button click
+  // Send message on button click (only when not in recording mode)
   sendButton.addEventListener('click', () => {
+    const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
+    if (recordingDisplay && recordingDisplay.style.display !== 'none') {
+      // If recording display is visible, don't send regular message
+      return;
+    }
     sendMessageWithAttachments(chatInput, chatMessages);
   });
 
-  // Send message on Enter key
+  // Send message on Enter key (only when not in recording mode)
   chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
+      const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
+      if (recordingDisplay && recordingDisplay.style.display !== 'none') {
+        // If recording display is visible, don't send regular message
+        return;
+      }
       sendMessageWithAttachments(chatInput, chatMessages);
     }
   });
 
-  // File upload button
-  fileButton.addEventListener('click', () => {
-    fileInput.click();
+  // Tools menu functionality
+  const toolsMenu = document.getElementById('tools-menu') as HTMLElement;
+  const activeToolIndicator = document.getElementById('active-tool-indicator') as HTMLElement;
+  const activeToolText = document.getElementById('active-tool-text') as HTMLElement;
+  const clearToolBtn = document.getElementById('clear-tool-btn') as HTMLButtonElement;
+
+  // Tools button click - show/hide menu
+  if (toolsButton && toolsMenu) {
+    toolsButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = toolsMenu.style.display === 'block';
+      toolsMenu.style.display = isVisible ? 'none' : 'block';
+    });
+  }
+
+  // Close tools menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (toolsMenu && !toolsButton?.contains(e.target as Node) && !toolsMenu.contains(e.target as Node)) {
+      toolsMenu.style.display = 'none';
+    }
   });
+
+  // Tool options click handlers
+  const toolOptions = document.querySelectorAll('.tool-option');
+  toolOptions.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const command = (option as HTMLElement).dataset.command;
+
+      if (command) {
+        // Check if edit-image requires image attachment
+        if (command === 'edit-image' && !hasImageAttachment()) {
+          alert('Please attach an image first to use the Edit Image tool.');
+          toolsMenu.style.display = 'none';
+          return;
+        }
+
+        // Activate the selected tool
+        activateTool(command, getToolDisplayName(command));
+        toolsMenu.style.display = 'none';
+      }
+    });
+  });
+
+  // Clear tool button
+  if (clearToolBtn) {
+    clearToolBtn.addEventListener('click', () => {
+      deactivateTool();
+    });
+  }
+
+  // File upload button
+  if (attachmentBtn) {
+    attachmentBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+  }
 
   // File input change
   fileInput.addEventListener('change', (e) => {
@@ -109,6 +185,17 @@ function initializeChat(): void {
       addAttachments(files);
       // Reset file input
       target.value = '';
+    }
+  });
+
+  // Audio recording button
+  audioBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      // Stop recording
+      await stopAudioRecording(audioBtn, document.getElementById('chat-messages') as HTMLElement);
+    } else {
+      // Start recording
+      await startAudioRecording(audioBtn);
     }
   });
 }
@@ -163,8 +250,19 @@ function handleIncomingMessage(messageData: MessageData, chatMessages: HTMLEleme
   // Hide typing indicator if present
   hideTypingIndicator();
 
-  // Add the incoming message to chat
-  addMessage(chatMessages, messageData.content, 'bot');
+  // Extract base64 images from message data
+  const base64Images: string[] = [];
+  if (messageData.files && messageData.files.length > 0) {
+    messageData.files
+      .filter(file => file.type.startsWith('image/'))
+      .forEach(file => {
+        // Use base64 data directly (already includes data URL prefix)
+        base64Images.push(file.data);
+      });
+  }
+
+  // Add the incoming message to chat with base64 images
+  addMessage(chatMessages, messageData.content, 'bot', undefined, base64Images);
 
   // You can add additional logic here based on the message data
   // For example, trigger Live2D animations based on message content
@@ -188,7 +286,11 @@ function sendMessage(input: HTMLInputElement, messagesContainer: HTMLElement): v
     type: 'text',
     content: message,
     userId: getUserId(),
-    sender: 'user'
+    sender: 'user',
+    metadata: {
+      activeTool: activeTool,
+      toolCommand: activeTool
+    }
   };
 
   // Add user message
@@ -200,6 +302,11 @@ function sendMessage(input: HTMLInputElement, messagesContainer: HTMLElement): v
   // Send to webhook
   sendToWebhook(messageData).then(success => {
     handleWebhookResponse(messageData.id, success);
+
+    // Clear active tool after successful send
+    if (activeTool) {
+      deactivateTool();
+    }
   });
 
   // Show typing indicator
@@ -237,10 +344,85 @@ function sendFileMessage(file: File, messagesContainer: HTMLElement): void {
 /**
  * Add a message to the chat
  */
-function addMessage(container: HTMLElement, text: string, type: 'user' | 'bot'): void {
+function addMessage(container: HTMLElement, text: string, type: 'user' | 'bot' | 'command', attachments?: File[], base64Images?: string[]): void {
+
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type}`;
-  messageDiv.textContent = text;
+
+  // Add text content if provided
+  if (text && text.trim()) {
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = text;
+    messageDiv.appendChild(textDiv);
+  }
+
+  // Add image attachments if any (from user uploads)
+  if (attachments && attachments.length > 0) {
+    const imagesContainer = document.createElement('div');
+    imagesContainer.className = 'message-images';
+
+    attachments.forEach((file, index) => {
+      if (file.type.startsWith('image/')) {
+        const imageWrapper = document.createElement('div');
+        imageWrapper.className = 'message-image-wrapper';
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = file.name;
+        img.className = 'message-image';
+        img.onload = () => URL.revokeObjectURL(img.src);
+
+        const sizeText = document.createElement('div');
+        sizeText.className = 'message-image-size';
+        sizeText.textContent = formatFileSize(file.size);
+
+        imageWrapper.appendChild(img);
+        imageWrapper.appendChild(sizeText);
+        imagesContainer.appendChild(imageWrapper);
+      }
+    });
+
+    if (imagesContainer.children.length > 0) {
+      messageDiv.appendChild(imagesContainer);
+    }
+  }
+
+  // Add base64 images if any (from bot responses)
+  if (base64Images && base64Images.length > 0) {
+    const imagesContainer = document.createElement('div');
+    imagesContainer.className = 'message-images';
+
+    base64Images.forEach((base64Data, index) => {
+      const imageWrapper = document.createElement('div');
+      imageWrapper.className = 'message-image-wrapper';
+
+      const img = document.createElement('img');
+      img.src = base64Data;
+      img.alt = `Image ${index + 1}`;
+      img.className = 'message-image';
+
+      // Add error handling
+      img.onerror = () => {
+        console.error('❌ Failed to load image from base64');
+      };
+
+      // Extract file size from base64 if available
+      const sizeText = document.createElement('div');
+      sizeText.className = 'message-image-size';
+      // For base64 images, we can't easily get the original file size
+      // So we'll show a generic message
+      sizeText.textContent = 'Image';
+
+      imageWrapper.appendChild(img);
+      imageWrapper.appendChild(sizeText);
+      imagesContainer.appendChild(imageWrapper);
+    });
+
+    if (imagesContainer.children.length > 0) {
+      messageDiv.appendChild(imagesContainer);
+    }
+  }
 
   // Add timestamp
   const timestamp = document.createElement('div');
@@ -293,6 +475,243 @@ function handleWebhookResponse(messageId: string, success: boolean): void {
 }
 
 /**
+ * Show recording display and hide chat input
+ */
+function showRecordingDisplay(): void {
+  const chatInputContainer = document.getElementById('chat-input-container') as HTMLElement;
+  const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
+
+  if (chatInputContainer && recordingDisplay) {
+    // Hide chat input
+    chatInputContainer.style.display = 'none';
+
+    // Show recording display
+    recordingDisplay.style.display = 'flex';
+
+    // Setup event listeners for recording actions
+    setupRecordingActions();
+  }
+}
+
+/**
+ * Start recording timer that updates every 100ms
+ */
+function startRecordingTimer(): void {
+  const timerElement = document.getElementById('recording-timer') as HTMLElement;
+
+  if (!timerElement) return;
+
+  // Clear any existing timer
+  if (recordingTimerInterval) {
+    clearInterval(recordingTimerInterval);
+  }
+
+  // Update timer immediately
+  updateRecordingTimer();
+
+  // Set up interval to update timer every 100ms
+  recordingTimerInterval = setInterval(updateRecordingTimer, 100);
+}
+
+/**
+ * Update recording timer display
+ */
+function updateRecordingTimer(): void {
+  const timerElement = document.getElementById('recording-timer') as HTMLElement;
+
+  if (!timerElement || recordingStartTime === 0) return;
+
+  const elapsed = Date.now() - recordingStartTime;
+  const seconds = Math.floor(elapsed / 1000);
+  const centiseconds = Math.floor((elapsed % 1000) / 10);
+
+  // Format as MM:SS.CC
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  // Pad with zeros manually for compatibility
+  const padZero = (num: number): string => (num < 10 ? '0' + num : num.toString());
+
+  const formattedTime = `${padZero(minutes)}:${padZero(remainingSeconds)}.${padZero(centiseconds)}`;
+  timerElement.textContent = formattedTime;
+}
+
+/**
+ * Stop recording timer
+ */
+function stopRecordingTimer(): void {
+  if (recordingTimerInterval) {
+    clearInterval(recordingTimerInterval);
+    recordingTimerInterval = null;
+  }
+  recordingStartTime = 0;
+}
+
+/**
+ * Hide recording display and show chat input
+ */
+function hideRecordingDisplay(): void {
+  const chatInputContainer = document.getElementById('chat-input-container') as HTMLElement;
+  const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
+  const recordingCompleteDisplay = document.getElementById('recording-complete-display') as HTMLElement;
+  const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+
+  if (chatInputContainer && chatInput) {
+    // Show chat input
+    chatInputContainer.style.display = 'flex';
+
+    // Hide both recording displays
+    if (recordingDisplay) {
+      recordingDisplay.style.display = 'none';
+    }
+    if (recordingCompleteDisplay) {
+      recordingCompleteDisplay.style.display = 'none';
+    }
+
+    // Reset chat input
+    chatInput.value = '';
+    chatInput.disabled = false;
+    chatInput.placeholder = 'Type your message...';
+
+    // Clear recorded audio
+    recordedAudio = null;
+
+    console.log('Recording displays hidden, chat input restored');
+  }
+}
+
+/**
+ * Show recording complete display with filename
+ */
+function showRecordingCompleteDisplay(filename: string): void {
+  const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
+  const recordingCompleteDisplay = document.getElementById('recording-complete-display') as HTMLElement;
+  const recordingCompleteFilename = document.getElementById('recording-complete-filename') as HTMLElement;
+
+  if (recordingDisplay && recordingCompleteDisplay && recordingCompleteFilename) {
+    // Hide recording display
+    recordingDisplay.style.display = 'none';
+
+    // Show recording complete display with filename
+    recordingCompleteFilename.textContent = filename;
+    recordingCompleteDisplay.style.display = 'flex';
+
+    // Setup event listeners for recording complete actions
+    setupRecordingCompleteActions();
+  }
+}
+
+/**
+ * Setup event listeners for recording actions
+ */
+function setupRecordingActions(): void {
+  const stopBtn = document.getElementById('stop-recording') as HTMLButtonElement;
+
+  // Remove existing event listeners to avoid duplicates
+  if (stopBtn) {
+    stopBtn.onclick = null;
+    stopBtn.addEventListener('click', () => {
+      const audioBtn = document.getElementById('audio-btn') as HTMLButtonElement;
+      const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+      if (audioBtn && chatMessages) {
+        stopAudioRecording(audioBtn, chatMessages);
+      }
+    });
+  }
+}
+
+/**
+ * Setup event listeners for recording complete actions
+ */
+function setupRecordingCompleteActions(): void {
+  const cancelBtn = document.getElementById('cancel-recording') as HTMLButtonElement;
+  const sendBtn = document.getElementById('send-recording') as HTMLButtonElement;
+
+  // Remove existing event listeners to avoid duplicates
+  if (cancelBtn) {
+    cancelBtn.onclick = null;
+    cancelBtn.addEventListener('click', () => {
+      hideRecordingDisplay();
+    });
+  }
+
+  if (sendBtn) {
+    sendBtn.onclick = null;
+    sendBtn.addEventListener('click', () => {
+      sendRecording();
+    });
+  }
+}
+
+/**
+ * Send the recorded audio
+ */
+function sendRecording(): void {
+  console.log('sendRecording called');
+  console.log('recordedAudio exists:', !!recordedAudio);
+
+  if (!recordedAudio) {
+    console.error('No recorded audio to send');
+    return;
+  }
+
+  console.log('Recorded audio details:', {
+    name: recordedAudio.name,
+    size: recordedAudio.size,
+    type: recordedAudio.type
+  });
+
+  const messagesContainer = document.getElementById('chat-messages') as HTMLElement;
+
+  // Add recorded audio to attachments
+  currentAttachments.push(recordedAudio);
+
+  // Generate message data for audio-only message
+  const messageData: MessageData = {
+    id: generateMessageId(),
+    timestamp: new Date().toISOString(),
+    type: 'audio',
+    content: '',
+    userId: getUserId(),
+    sender: 'user',
+    metadata: {
+      attachments: [{
+        name: recordedAudio.name,
+        type: recordedAudio.type,
+        size: recordedAudio.size
+      }],
+      activeTool: activeTool,
+      toolCommand: activeTool,
+      commandId: activeTool,
+      isAudioMessage: true
+    }
+  };
+
+  // Display the audio message
+  addMessage(messagesContainer, `[${recordedAudio.name}]`, 'user', [recordedAudio]);
+
+  // Clear attachments and recorded audio
+  currentAttachments = [];
+  recordedAudio = null;
+
+  // Send to webhook
+  console.log('Sending to webhook with messageData:', messageData);
+  sendToWebhook(messageData).then(success => {
+    console.log('Webhook response:', success);
+    handleWebhookResponse(messageData.id, success);
+  });
+
+  // Show typing indicator
+  showTypingIndicator(messagesContainer);
+
+  // Hide recording display and restore chat input immediately
+  setTimeout(() => {
+    hideRecordingDisplay();
+    console.log('Recording display hidden after sending');
+  }, 100);
+}
+
+/**
  * Generate unique message ID
  */
 function generateMessageId(): string {
@@ -312,10 +731,122 @@ function getUserId(): string {
 }
 
 /**
- * Send message data to n8n webhook
+ * Check if there are image attachments
  */
-async function sendToWebhook(messageData: MessageData): Promise<boolean> {
+function hasImageAttachment(): boolean {
+  return currentAttachments.some(file => file.type.startsWith('image/'));
+}
+
+/**
+ * Get display name for a tool command
+ */
+function getToolDisplayName(command: string): string {
+  const toolNames: { [key: string]: string } = {
+    'generate-image': '<i class="fas fa-palette"></i> Generate Image',
+    'generate-audio': '<i class="fas fa-music"></i> Generate Audio',
+    'edit-image': '<i class="fas fa-edit"></i> Edit Image'
+  };
+  return toolNames[command] || command;
+}
+
+/**
+ * Activate a tool
+ */
+function activateTool(toolCommand: string, displayText: string): void {
+  activeTool = toolCommand;
+  const toolsButton = document.getElementById('tools-button') as HTMLButtonElement;
+  const activeToolIndicator = document.getElementById('active-tool-indicator') as HTMLElement;
+  const activeToolText = document.getElementById('active-tool-text') as HTMLElement;
+
+  if (toolsButton) {
+    toolsButton.classList.add('active');
+  }
+
+  if (activeToolIndicator && activeToolText) {
+    activeToolText.innerHTML = displayText;
+    activeToolIndicator.style.display = 'flex';
+  }
+
+  console.log('🎯 Tool activated:', toolCommand);
+}
+
+/**
+ * Deactivate current tool
+ */
+function deactivateTool(): void {
+  activeTool = null;
+  const toolsButton = document.getElementById('tools-button') as HTMLButtonElement;
+  const activeToolIndicator = document.getElementById('active-tool-indicator') as HTMLElement;
+
+  if (toolsButton) {
+    toolsButton.classList.remove('active');
+  }
+
+  if (activeToolIndicator) {
+    activeToolIndicator.style.display = 'none';
+  }
+
+  console.log('🎯 Tool deactivated');
+}
+
+/**
+ * Execute special command
+ */
+function executeCommand(command: string): void {
+  console.log('🎯 Executing command:', command);
+
+  // Validate command requirements
+  if (command === 'edit-image' && currentAttachments.length === 0) {
+    alert('Please attach an image first to use the edit image command.');
+    return;
+  }
+
+  if (command === 'edit-image' && !currentAttachments.some(file => file.type.startsWith('image/'))) {
+    alert('Please attach an image file to use the edit image command.');
+    return;
+  }
+
+  // Create command message
+  const commandMessage: MessageData = {
+    id: generateMessageId(),
+    timestamp: new Date().toISOString(),
+    type: 'command',
+    content: `/${command}`,
+    userId: getUserId(),
+    sender: 'user',
+    metadata: {
+      commandId: command,
+      attachments: currentAttachments.map(file => ({
+        name: file.name,
+        type: file.type,
+        size: file.size
+      }))
+    }
+  };
+
+  // Add command message to chat
+  addMessage(document.getElementById('chat-messages') as HTMLElement, `/${command}`, 'user');
+
+  // Clear attachments after command
+  currentAttachments = [];
+  updateAttachmentsPreview();
+
+  // Send command to webhook
+  sendCommandToWebhook(commandMessage).then(success => {
+    handleWebhookResponse(commandMessage.id, success);
+  });
+
+  // Show typing indicator
+  showTypingIndicator(document.getElementById('chat-messages') as HTMLElement);
+}
+
+/**
+ * Send command data to n8n webhook
+ */
+async function sendCommandToWebhook(messageData: MessageData): Promise<boolean> {
   try {
+    const commandId = messageData.metadata?.commandId || activeTool;
+
     const response = await fetch(CONFIG.WEBHOOK_URL, {
       method: 'POST',
       headers: {
@@ -324,22 +855,77 @@ async function sendToWebhook(messageData: MessageData): Promise<boolean> {
       body: JSON.stringify({
         messageId: messageData.id,
         timestamp: messageData.timestamp,
-        messageType: messageData.type,
+        messageType: 'command',
+        commandId: commandId,
         content: messageData.content,
         userId: messageData.userId,
         sender: messageData.sender,
-        // File metadata
-        fileName: messageData.fileName,
-        fileSize: messageData.fileSize,
-        fileType: messageData.fileType,
+        // Command specific data
+        command: commandId,
+        tool: commandId,
+        attachments: messageData.metadata?.attachments || [],
         // Additional metadata
         userAgent: navigator.userAgent,
         sessionId: getSessionId(),
         platform: 'web',
         language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        // Tool-specific validation
+        hasImageAttachment: hasImageAttachment(),
+        attachmentCount: currentAttachments.length
       })
     });
+
+    if (!response.ok) {
+      console.error('Command webhook error:', response.status, response.statusText);
+      return false;
+    } else {
+      console.log('Command sent to webhook successfully:', commandId);
+      return true;
+    }
+  } catch (error) {
+    console.error('Failed to send command webhook:', error);
+    return false;
+  }
+}
+
+/**
+ * Send message data to n8n webhook
+ */
+async function sendToWebhook(messageData: MessageData): Promise<boolean> {
+  console.log('sendToWebhook called with messageData:', messageData);
+
+  try {
+    const payload = {
+      messageId: messageData.id,
+      timestamp: messageData.timestamp,
+      messageType: messageData.type,
+      content: messageData.content,
+      userId: messageData.userId,
+      sender: messageData.sender,
+      // File metadata
+      fileName: messageData.fileName,
+      fileSize: messageData.fileSize,
+      fileType: messageData.fileType,
+      // Additional metadata
+      userAgent: navigator.userAgent,
+      sessionId: getSessionId(),
+      platform: 'web',
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+
+    console.log('Sending payload to webhook:', CONFIG.WEBHOOK_URL, payload);
+
+    const response = await fetch(CONFIG.WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    console.log('Webhook response status:', response.status);
 
     if (!response.ok) {
       console.error('Webhook error:', response.status, response.statusText);
@@ -401,10 +987,15 @@ async function sendToWebhookWithFile(messageData: MessageData, file: File): Prom
   }
 }
 
-// Global variables for attachments and recording
+// Global variables for attachments, recording, and active tool
 let currentAttachments: File[] = [];
 let mediaRecorder: MediaRecorder | null = null;
 let audioChunks: Blob[] = [];
+let activeTool: string | null = null;
+let isRecording: boolean = false;
+let recordedAudio: File | null = null;
+let recordingStartTime: number = 0;
+let recordingTimerInterval: number | null = null;
 
 /**
  * Initialize audio recording functionality
@@ -426,31 +1017,86 @@ function initializeAudioRecording(audioButton: HTMLButtonElement, chatMessages: 
  */
 async function startAudioRecording(audioButton: HTMLButtonElement): Promise<void> {
   try {
+    console.log('Requesting microphone access...');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus'
-    });
+    console.log('Microphone access granted');
 
+    // Try different mime types for better compatibility
+    let mimeType = 'audio/webm';
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+      mimeType = 'audio/webm;codecs=opus';
+    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+      mimeType = 'audio/mp4';
+    } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+      mimeType = 'audio/ogg;codecs=opus';
+    }
+
+    console.log('Using mime type:', mimeType);
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
     audioChunks = [];
+    isRecording = true;
 
     mediaRecorder.ondataavailable = (event) => {
+      console.log('Audio data available:', {
+        size: event.data.size,
+        type: event.data.type
+      });
+
       if (event.data.size > 0) {
         audioChunks.push(event.data);
+        console.log('Audio chunk added, total chunks:', audioChunks.length);
+      } else {
+        console.warn('Received empty audio data');
       }
     };
 
     mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
-      const audioFile = new File([audioBlob], `recording_${Date.now()}.ogg`, { type: 'audio/ogg' });
-      addAttachments([audioFile]);
+      console.log('MediaRecorder onstop triggered, chunks:', audioChunks.length);
+
+      if (audioChunks.length === 0) {
+        console.error('No audio chunks recorded!');
+        // Reset recording state
+        isRecording = false;
+        hideRecordingDisplay();
+        return;
+      }
+
+      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
+
+      // Determine file extension based on mime type
+      let extension = 'webm';
+      if (mimeType.includes('mp4')) extension = 'mp4';
+      else if (mimeType.includes('ogg')) extension = 'ogg';
+
+      const filename = `recording_${Date.now()}.${extension}`;
+      recordedAudio = new File([audioBlob], filename, { type: mimeType });
+
+      console.log('Audio blob created:', {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        filename: filename
+      });
 
       // Stop all tracks
       stream.getTracks().forEach(track => track.stop());
+
+      // Show recording complete display
+      showRecordingCompleteDisplay(filename);
+
+      console.log('Audio recording completed:', filename);
     };
 
     mediaRecorder.start();
     audioButton.classList.add('recording');
-    showRecordingIndicator();
+
+    // Start recording timer
+    recordingStartTime = Date.now();
+    startRecordingTimer();
+
+    // Immediately show recording display and hide chat input
+    showRecordingDisplay();
 
     console.log('Audio recording started');
   } catch (error) {
@@ -466,7 +1112,11 @@ function stopAudioRecording(audioButton: HTMLButtonElement, chatMessages: HTMLEl
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
     audioButton.classList.remove('recording');
-    hideRecordingIndicator();
+    isRecording = false;
+
+    // Stop the timer
+    stopRecordingTimer();
+
     console.log('Audio recording stopped');
   }
 }
@@ -541,6 +1191,7 @@ function removeAttachment(index: number): void {
   updateAttachmentsPreview();
 }
 
+
 /**
  * Update attachments preview
  */
@@ -559,23 +1210,30 @@ function updateAttachmentsPreview(): void {
   currentAttachments.forEach((file, index) => {
     const attachmentDiv = document.createElement('div');
     attachmentDiv.className = 'attachment-item';
+    attachmentDiv.setAttribute('data-type', file.type);
 
     if (file.type.startsWith('image/')) {
       const img = document.createElement('img');
       img.src = URL.createObjectURL(file);
+      img.alt = file.name;
       img.onload = () => URL.revokeObjectURL(img.src);
+
       attachmentDiv.appendChild(img);
-    } else if (file.type.startsWith('audio/')) {
-      const audioIcon = document.createTextNode('🎵');
-      attachmentDiv.appendChild(audioIcon);
     } else {
-      const fileIcon = document.createTextNode('📄');
+      const fileIcon = document.createElement('div');
+      fileIcon.className = 'file-icon';
       attachmentDiv.appendChild(fileIcon);
     }
 
-    const fileName = document.createElement('span');
-    fileName.textContent = file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name;
+    const fileName = document.createElement('div');
+    fileName.className = 'file-name';
+    fileName.textContent = file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name;
     attachmentDiv.appendChild(fileName);
+
+    const fileSize = document.createElement('div');
+    fileSize.className = 'file-size';
+    fileSize.textContent = formatFileSize(file.size);
+    attachmentDiv.appendChild(fileSize);
 
     const removeBtn = document.createElement('span');
     removeBtn.className = 'remove-attachment';
@@ -588,6 +1246,19 @@ function updateAttachmentsPreview(): void {
 }
 
 /**
+ * Format file size for display
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+/**
  * Send message with attachments
  */
 function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: HTMLElement): void {
@@ -596,10 +1267,21 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
   console.log('📝 sendMessageWithAttachments called');
   console.log('💬 Message:', message || '(empty)');
   console.log('📎 Attachments count:', currentAttachments.length);
-  console.log('📎 Attachments:', currentAttachments.map(f => f.name));
+  console.log('🎤 Recorded audio:', recordedAudio ? recordedAudio.name : 'none');
 
-  // Must have either text or attachments
-  if (!message && currentAttachments.length === 0) {
+  // Add recorded audio to attachments if available
+  if (recordedAudio) {
+    currentAttachments.push(recordedAudio);
+    recordedAudio = null; // Clear after adding
+    console.log('✅ Recorded audio added to attachments');
+  }
+
+  // If message is just "audio" or a recording filename, treat it as audio-only message
+  const isAudioMessage = message === 'audio' || (recordedAudio && message.startsWith('recording_') && message.endsWith('.ogg'));
+  const finalMessage = isAudioMessage ? '' : message; // Empty message for audio-only
+
+  // Must have either text or attachments (including recorded audio)
+  if (!finalMessage && currentAttachments.length === 0 && !recordedAudio) {
     console.log('❌ No message or attachments, returning');
     return;
   }
@@ -608,8 +1290,8 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
   const messageData: MessageData = {
     id: generateMessageId(),
     timestamp: new Date().toISOString(),
-    type: 'text',
-    content: message,
+    type: activeTool ? 'command' : 'text',
+    content: finalMessage,
     userId: getUserId(),
     sender: 'user',
     metadata: {
@@ -617,31 +1299,49 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
         name: file.name,
         type: file.type,
         size: file.size
-      }))
+      })),
+      activeTool: activeTool,
+      toolCommand: activeTool,
+      commandId: activeTool,
+      isAudioMessage: isAudioMessage
     }
   };
 
+  // Store attachments for processing
+  const attachmentsToSend = [...currentAttachments];
+
   // Add user message
-  let displayText = message;
-  if (currentAttachments.length > 0) {
+  let displayText = finalMessage;
+  if (isAudioMessage) {
+    // For audio messages, show the filename
+    displayText = message;
+  } else if (currentAttachments.length > 0) {
     const attachmentText = currentAttachments.length === 1
       ? `[${currentAttachments[0].name}]`
       : `[${currentAttachments.length} files]`;
     displayText = displayText ? `${displayText} ${attachmentText}` : attachmentText;
   }
 
-  addMessage(messagesContainer, displayText, 'user');
-
-  // Store attachments for processing
-  const attachmentsToSend = [...currentAttachments];
+  addMessage(messagesContainer, displayText, 'user', attachmentsToSend);
 
   // Clear input and attachments immediately for UI
   input.value = '';
   currentAttachments = [];
   updateAttachmentsPreview();
 
+  // Clear active tool after sending
+  if (activeTool) {
+    deactivateTool();
+  }
+
   // Send to webhook
-  if (attachmentsToSend.length > 0) {
+  if (activeTool) {
+    console.log('Sending command with active tool:', activeTool);
+    // Send as command
+    sendCommandToWebhook(messageData).then(success => {
+      handleWebhookResponse(messageData.id, success);
+    });
+  } else if (attachmentsToSend.length > 0) {
     console.log('Sending mixed content with', attachmentsToSend.length, 'files');
     // Send with files (base64 encoded)
     sendMultipleFilesWithMessage(messageData, attachmentsToSend, messagesContainer);
@@ -697,13 +1397,16 @@ async function sendMultipleFilesWithMessage(messageData: MessageData, files: Fil
     // Create enhanced message data with file content
     const enhancedMessageData = {
       ...messageData,
-      messageType: 'mixed',
+      messageType: activeTool ? 'command' : 'mixed',
       files: fileData,
       metadata: {
         ...messageData.metadata,
         fileCount: files.length,
         totalSize: files.reduce((sum, file) => sum + file.size, 0),
-        hasText: !!(messageData.content && messageData.content.trim())
+        hasText: !!(messageData.content && messageData.content.trim()),
+        activeTool: activeTool,
+        toolCommand: activeTool,
+        commandId: activeTool
       }
     };
 
@@ -727,6 +1430,11 @@ async function sendMultipleFilesWithMessage(messageData: MessageData, files: Fil
       console.log('✅ Mixed content message sent to webhook successfully');
       console.log('📊 Response status:', response.status);
       handleWebhookResponse(messageData.id, true);
+
+      // Clear active tool after successful send
+      if (activeTool) {
+        deactivateTool();
+      }
     }
   } catch (error) {
     console.error('❌ Failed to send mixed content webhook:', error);
@@ -745,3 +1453,10 @@ function getSessionId(): string {
   }
   return sessionId;
 }
+
+// Test function for debugging image display
+(window as any).testImageDisplay = () => {
+  const testBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  console.log('🧪 Testing image display with file size');
+  addMessage(document.getElementById('chat-messages') as HTMLElement, 'Test image with size display', 'bot', undefined, [testBase64]);
+};
