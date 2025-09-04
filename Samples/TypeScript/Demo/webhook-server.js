@@ -179,7 +179,7 @@ function generateMessageId() {
   return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 server.listen(PORT, () => {
   console.log(`Webhook server running on port ${PORT}`);

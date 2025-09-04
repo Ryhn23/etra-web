@@ -204,7 +204,7 @@ function initializeChat(): void {
  * Initialize WebSocket connection to receive messages from webhook server
  */
 function initializeWebSocket(chatMessages: HTMLElement): void {
-  const wsUrl = `ws://localhost:3001`;
+  const wsUrl = `ws://localhost:3002`;
   let ws: WebSocket | null = null;
 
   function connectWebSocket() {
@@ -690,16 +690,32 @@ function sendRecording(): void {
   // Display the audio message
   addMessage(messagesContainer, `[${recordedAudio.name}]`, 'user', [recordedAudio]);
 
+  // Store the recorded audio before clearing
+  const audioToSend = recordedAudio;
+
   // Clear attachments and recorded audio
   currentAttachments = [];
   recordedAudio = null;
 
-  // Send to webhook
-  console.log('Sending to webhook with messageData:', messageData);
-  sendToWebhook(messageData).then(success => {
-    console.log('Webhook response:', success);
-    handleWebhookResponse(messageData.id, success);
-  });
+  // Send to webhook with file data
+  console.log('🎤 Sending recording to webhook...');
+  console.log('📊 MessageData:', messageData);
+  console.log('🎵 Audio file details:', audioToSend ? {
+    name: audioToSend.name,
+    size: audioToSend.size,
+    type: audioToSend.type
+  } : 'NULL');
+
+  if (audioToSend) {
+    console.log('✅ Audio file exists, sending to webhook...');
+    sendToWebhookWithFile(messageData, audioToSend).then(success => {
+      console.log('🎤 Webhook response for recording:', success);
+      handleWebhookResponse(messageData.id, success);
+    });
+  } else {
+    console.error('❌ No audio file to send to webhook - recordedAudio was null!');
+    handleWebhookResponse(messageData.id, false);
+  }
 
   // Show typing indicator
   showTypingIndicator(messagesContainer);
@@ -945,8 +961,12 @@ async function sendToWebhook(messageData: MessageData): Promise<boolean> {
  */
 async function sendToWebhookWithFile(messageData: MessageData, file: File): Promise<boolean> {
   try {
+    console.log('🎵 Converting audio file to base64...');
+    console.log('📁 File details:', { name: file.name, type: file.type, size: file.size });
+
     // Convert file to base64
     const base64Data = await fileToBase64(file);
+    console.log('✅ Audio file converted to base64, length:', base64Data.length);
 
     // Create enhanced message data with file content
     const enhancedMessageData = {
@@ -965,6 +985,10 @@ async function sendToWebhookWithFile(messageData: MessageData, file: File): Prom
       }
     };
 
+    console.log('📤 Sending audio to n8n webhook...');
+    console.log('🎯 Webhook URL:', CONFIG.WEBHOOK_URL);
+    console.log('📦 Payload size:', JSON.stringify(enhancedMessageData).length, 'characters');
+
     const response = await fetch(CONFIG.WEBHOOK_URL, {
       method: 'POST',
       headers: {
@@ -973,16 +997,18 @@ async function sendToWebhookWithFile(messageData: MessageData, file: File): Prom
       body: JSON.stringify(enhancedMessageData)
     });
 
+    console.log('📡 Webhook response status:', response.status);
+
     if (!response.ok) {
-      console.error('Webhook file error:', response.status, response.statusText);
+      console.error('❌ Webhook file error:', response.status, response.statusText);
       return false;
     } else {
-      console.log('File message sent to webhook successfully');
-      console.log('File included:', { name: file.name, type: file.type, size: file.size });
+      console.log('✅ Audio file sent to webhook successfully!');
+      console.log('🎵 Audio file details sent:', { name: file.name, type: file.type, size: file.size });
       return true;
     }
   } catch (error) {
-    console.error('Failed to send file webhook:', error);
+    console.error('❌ Failed to send audio webhook:', error);
     return false;
   }
 }
@@ -1021,14 +1047,23 @@ async function startAudioRecording(audioButton: HTMLButtonElement): Promise<void
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     console.log('Microphone access granted');
 
-    // Try different mime types for better compatibility
-    let mimeType = 'audio/webm';
-    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-      mimeType = 'audio/webm;codecs=opus';
-    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-      mimeType = 'audio/mp4';
-    } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+    // Force OGG format as requested
+    let mimeType = 'audio/ogg';
+    if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
       mimeType = 'audio/ogg;codecs=opus';
+    } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+      mimeType = 'audio/ogg';
+    } else {
+      console.warn('OGG format not supported, falling back to default');
+      // Try to find any supported format if OGG is not available
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else {
+        // Use default browser format
+        mimeType = ''; // Let browser choose
+      }
     }
 
     console.log('Using mime type:', mimeType);
@@ -1062,15 +1097,10 @@ async function startAudioRecording(audioButton: HTMLButtonElement): Promise<void
         return;
       }
 
-      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      // Force OGG format as requested
+      const mimeType = 'audio/ogg';
+      const filename = `recording_${Date.now()}.ogg`;
       const audioBlob = new Blob(audioChunks, { type: mimeType });
-
-      // Determine file extension based on mime type
-      let extension = 'webm';
-      if (mimeType.includes('mp4')) extension = 'mp4';
-      else if (mimeType.includes('ogg')) extension = 'ogg';
-
-      const filename = `recording_${Date.now()}.${extension}`;
       recordedAudio = new File([audioBlob], filename, { type: mimeType });
 
       console.log('Audio blob created:', {
