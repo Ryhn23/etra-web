@@ -149,6 +149,7 @@ function initializeChat(): void {
       const command = (option as HTMLElement).dataset.command;
 
       if (command) {
+        console.log('🛠️ Tool option clicked:', command);
         // Check if edit-image requires image attachment
         if (command === 'edit-image' && !hasImageAttachment()) {
           alert('Please attach an image first to use the Edit Image tool.');
@@ -784,6 +785,9 @@ function activateTool(toolCommand: string, displayText: string): void {
   }
 
   console.log('🎯 Tool activated:', toolCommand);
+  console.log('🔧 activeTool set to:', activeTool);
+  console.log('📋 Display text:', displayText);
+  console.log('🔍 DEBUG: activeTool stored as:', activeTool);
 }
 
 /**
@@ -861,35 +865,46 @@ function executeCommand(command: string): void {
  */
 async function sendCommandToWebhook(messageData: MessageData): Promise<boolean> {
   try {
-    const commandId = messageData.metadata?.commandId || activeTool;
+    const commandId = messageData.metadata?.commandId || activeTool || 'unknown';
+    console.log('🔧 sendCommandToWebhook called with commandId:', commandId);
+    console.log('📦 messageData.metadata:', messageData.metadata);
+    console.log('🎯 activeTool:', activeTool);
+    console.log('🔍 Full messageData:', messageData);
+    console.log('🔍 DEBUG: Extracted commandId:', commandId);
+    console.log('🔍 DEBUG: messageData.metadata?.commandId:', messageData.metadata?.commandId);
+    
+    // Use the simplified payload structure that works with n8n (based on debug tests)
+    const payload = {
+      messageId: messageData.id,
+      timestamp: messageData.timestamp,
+      messageType: 'text', // Always use 'text' as messageType for command compatibility
+      content: messageData.content,
+      userId: messageData.userId,
+      sender: messageData.sender,
+      metadata: {
+        ...messageData.metadata, // Include all original metadata
+        commandId: commandId,     // Ensure commandId is present in metadata
+        // Additional context for n8n
+        userAgent: navigator.userAgent,
+        sessionId: getSessionId(),
+        platform: 'web',
+        language: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        hasImageAttachment: hasImageAttachment(),
+        attachmentCount: currentAttachments.length
+      }
+    };
+
+    console.log('📤 Simplified payload being sent:', payload);
+    console.log('🔍 DEBUG: commandId in payload.metadata:', payload.metadata.commandId);
+    console.log('🔍 DEBUG: Full payload metadata:', payload.metadata);
 
     const response = await fetch(CONFIG.WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messageId: messageData.id,
-        timestamp: messageData.timestamp,
-        messageType: 'command',
-        commandId: commandId,
-        content: messageData.content,
-        userId: messageData.userId,
-        sender: messageData.sender,
-        // Command specific data
-        command: commandId,
-        tool: commandId,
-        attachments: messageData.metadata?.attachments || [],
-        // Additional metadata
-        userAgent: navigator.userAgent,
-        sessionId: getSessionId(),
-        platform: 'web',
-        language: navigator.language,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        // Tool-specific validation
-        hasImageAttachment: hasImageAttachment(),
-        attachmentCount: currentAttachments.length
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -1298,6 +1313,8 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
   console.log('💬 Message:', message || '(empty)');
   console.log('📎 Attachments count:', currentAttachments.length);
   console.log('🎤 Recorded audio:', recordedAudio ? recordedAudio.name : 'none');
+  console.log('🛠️ Active tool:', activeTool);
+  console.log('🔍 Current attachments:', currentAttachments.map(f => f.name));
 
   // Add recorded audio to attachments if available
   if (recordedAudio) {
@@ -1336,6 +1353,14 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
       isAudioMessage: isAudioMessage
     }
   };
+  
+  console.log('📦 MessageData created:', {
+    type: messageData.type,
+    content: messageData.content,
+    metadata: messageData.metadata
+  });
+  console.log('🔍 DEBUG: commandId in messageData.metadata:', messageData.metadata.commandId);
+  console.log('🔍 DEBUG: activeTool at message creation:', activeTool);
 
   // Store attachments for processing
   const attachmentsToSend = [...currentAttachments];
@@ -1359,17 +1384,16 @@ function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: 
   currentAttachments = [];
   updateAttachmentsPreview();
 
-  // Clear active tool after sending
-  if (activeTool) {
-    deactivateTool();
-  }
 
   // Send to webhook
   if (activeTool) {
-    console.log('Sending command with active tool:', activeTool);
+    console.log('🎯 Sending command with active tool:', activeTool);
+    console.log('📤 Calling sendCommandToWebhook with messageData:', messageData);
     // Send as command
     sendCommandToWebhook(messageData).then(success => {
       handleWebhookResponse(messageData.id, success);
+      // Clear active tool after successful send
+      deactivateTool();
     });
   } else if (attachmentsToSend.length > 0) {
     console.log('Sending mixed content with', attachmentsToSend.length, 'files');
