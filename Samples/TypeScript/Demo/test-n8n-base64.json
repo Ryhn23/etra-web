@@ -1,0 +1,21 @@
+{
+  "messageId": "msg_1234567890",
+  "timestamp": "2025-09-04T03:45:00.000Z",
+  "messageType": "mixed",
+  "content": "Here is the image you requested",
+  "userId": "system",
+  "sender": "bot",
+  "files": [
+    {
+      "name": "generated_image.png",
+      "type": "image/png",
+      "size": 10240,
+      "data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    }
+  ],
+  "metadata": {
+    "triggerAnimation": "happy",
+    "fileCount": 1,
+    "hasText": true
+  }
+}

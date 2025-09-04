@@ -11,7 +11,7 @@ import * as LAppDefine from './lappdefine';
 // Configuration
 const CONFIG = {
   WEBHOOK_URL: 'https://n8n.nextray.online/webhook/e1d52c48-5940-4120-b059-68c2b202aeef',
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+  MAX_FILE_SIZE: 100 * 1024 * 1024, // 10MB
   SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   SUPPORTED_AUDIO_TYPES: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
   SUPPORTED_FILE_TYPES: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -251,19 +251,27 @@ function handleIncomingMessage(messageData: MessageData, chatMessages: HTMLEleme
   // Hide typing indicator if present
   hideTypingIndicator();
 
-  // Extract base64 images from message data
-  const base64Images: string[] = [];
+  // Extract base64 files from message data
+  const base64Files: Array<{data: string, type: string, name: string}> = [];
   if (messageData.files && messageData.files.length > 0) {
-    messageData.files
-      .filter(file => file.type.startsWith('image/'))
-      .forEach(file => {
-        // Use base64 data directly (already includes data URL prefix)
-        base64Images.push(file.data);
+    messageData.files.forEach(file => {
+      console.log('Processing base64 file:', {
+        name: file.name,
+        type: file.type,
+        dataLength: file.data ? file.data.length : 0
       });
+      
+      // Use base64 data directly (already includes data URL prefix)
+      base64Files.push({
+        data: file.data,
+        type: file.type,
+        name: file.name
+      });
+    });
   }
 
-  // Add the incoming message to chat with base64 images
-  addMessage(chatMessages, messageData.content, 'bot', undefined, base64Images);
+  // Add the incoming message to chat with base64 files
+  addMessage(chatMessages, messageData.content, 'bot', undefined, base64Files);
 
   // You can add additional logic here based on the message data
   // For example, trigger Live2D animations based on message content
@@ -345,7 +353,7 @@ function sendFileMessage(file: File, messagesContainer: HTMLElement): void {
 /**
  * Add a message to the chat
  */
-function addMessage(container: HTMLElement, text: string, type: 'user' | 'bot' | 'command', attachments?: File[], base64Images?: string[]): void {
+function addMessage(container: HTMLElement, text: string, type: 'user' | 'bot' | 'command', attachments?: File[], base64Files?: Array<{data: string, type: string, name: string}>): void {
 
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type}`;
@@ -389,39 +397,72 @@ function addMessage(container: HTMLElement, text: string, type: 'user' | 'bot' |
     }
   }
 
-  // Add base64 images if any (from bot responses)
-  if (base64Images && base64Images.length > 0) {
-    const imagesContainer = document.createElement('div');
-    imagesContainer.className = 'message-images';
+  // Add base64 files if any (from bot responses)
+  if (base64Files && base64Files.length > 0) {
+    const filesContainer = document.createElement('div');
+    filesContainer.className = 'message-files';
 
-    base64Images.forEach((base64Data, index) => {
-      const imageWrapper = document.createElement('div');
-      imageWrapper.className = 'message-image-wrapper';
+    base64Files.forEach((fileData, index) => {
+      const fileWrapper = document.createElement('div');
+      fileWrapper.className = 'message-file-wrapper';
 
-      const img = document.createElement('img');
-      img.src = base64Data;
-      img.alt = `Image ${index + 1}`;
-      img.className = 'message-image';
+      if (fileData.type.startsWith('image/')) {
+        // Handle images
+        const img = document.createElement('img');
+        img.src = fileData.data;
+        img.alt = fileData.name || `Image ${index + 1}`;
+        img.className = 'message-image';
+        img.onload = () => console.log('✅ Image loaded successfully');
+        img.onerror = () => console.error('❌ Failed to load image from base64');
 
-      // Add error handling
-      img.onerror = () => {
-        console.error('❌ Failed to load image from base64');
-      };
+        const sizeText = document.createElement('div');
+        sizeText.className = 'message-file-size';
+        sizeText.textContent = fileData.name || 'Image';
 
-      // Extract file size from base64 if available
-      const sizeText = document.createElement('div');
-      sizeText.className = 'message-image-size';
-      // For base64 images, we can't easily get the original file size
-      // So we'll show a generic message
-      sizeText.textContent = 'Image';
+        fileWrapper.appendChild(img);
+        fileWrapper.appendChild(sizeText);
+        filesContainer.appendChild(fileWrapper);
+      } else if (fileData.type.startsWith('audio/')) {
+        // Handle audio files
+        const audio = document.createElement('audio');
+        audio.src = fileData.data;
+        audio.controls = true;
+        audio.className = 'message-audio';
+        audio.onerror = () => console.error('❌ Failed to load audio from base64');
 
-      imageWrapper.appendChild(img);
-      imageWrapper.appendChild(sizeText);
-      imagesContainer.appendChild(imageWrapper);
+        const fileName = document.createElement('div');
+        fileName.className = 'message-file-name';
+        fileName.textContent = fileData.name || 'Audio';
+
+        fileWrapper.appendChild(audio);
+        fileWrapper.appendChild(fileName);
+        filesContainer.appendChild(fileWrapper);
+      } else {
+        // Handle other file types (PDF, documents, etc.)
+        const fileIcon = document.createElement('div');
+        fileIcon.className = 'message-file-icon';
+        fileIcon.innerHTML = '📄';
+
+        const fileName = document.createElement('div');
+        fileName.className = 'message-file-name';
+        fileName.textContent = fileData.name || `File ${index + 1}`;
+
+        const downloadBtn = document.createElement('a');
+        downloadBtn.href = fileData.data;
+        downloadBtn.download = fileData.name || `file_${index + 1}`;
+        downloadBtn.className = 'message-file-download';
+        downloadBtn.textContent = 'Download';
+        downloadBtn.onclick = (e) => e.stopPropagation();
+
+        fileWrapper.appendChild(fileIcon);
+        fileWrapper.appendChild(fileName);
+        fileWrapper.appendChild(downloadBtn);
+        filesContainer.appendChild(fileWrapper);
+      }
     });
 
-    if (imagesContainer.children.length > 0) {
-      messageDiv.appendChild(imagesContainer);
+    if (filesContainer.children.length > 0) {
+      messageDiv.appendChild(filesContainer);
     }
   }
 
@@ -1512,5 +1553,7 @@ function getSessionId(): string {
 (window as any).testImageDisplay = () => {
   const testBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   console.log('🧪 Testing image display with file size');
-  addMessage(document.getElementById('chat-messages') as HTMLElement, 'Test image with size display', 'bot', undefined, [testBase64]);
+  addMessage(document.getElementById('chat-messages') as HTMLElement, 'Test image with file size display', 'bot', undefined, [
+    { data: testBase64, type: 'image/png', name: 'test_image.png' }
+  ]);
 };
