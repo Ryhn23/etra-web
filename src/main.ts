@@ -58,6 +58,9 @@ window.addEventListener(
   
     // Initialize Live2D settings
     initializeLive2DSettings();
+  
+    // Initialize connection status monitoring
+    initializeConnectionStatus();
   },
   { passive: true }
 );
@@ -75,7 +78,7 @@ window.addEventListener(
  * Initialize chat functionality
  */
 function initializeChat(): void {
-  const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+  const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
   const sendButton = document.getElementById('send-button') as HTMLButtonElement;
   const toolsButton = document.getElementById('tools-button') as HTMLButtonElement;
   const attachmentBtn = document.getElementById('attachment-btn') as HTMLButtonElement;
@@ -110,9 +113,16 @@ function initializeChat(): void {
     sendMessageWithAttachments(chatInput, chatMessages);
   });
 
+  // Auto-resize textarea function
+  function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
   // Send message on Enter key (only when not in recording mode)
   chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       const recordingDisplay = document.getElementById('recording-display') as HTMLElement;
       if (recordingDisplay && recordingDisplay.style.display !== 'none') {
         // If recording display is visible, don't send regular message
@@ -121,6 +131,14 @@ function initializeChat(): void {
       sendMessageWithAttachments(chatInput, chatMessages);
     }
   });
+
+  // Auto-resize textarea
+  chatInput.addEventListener('input', () => {
+    autoResizeTextarea(chatInput);
+  });
+
+  // Initial resize
+  autoResizeTextarea(chatInput);
 
   // Tools menu functionality
   const toolsMenu = document.getElementById('tools-menu') as HTMLElement;
@@ -430,6 +448,97 @@ function initializeLive2DSettings(): void {
     updateLive2DModel(defaultPosX, defaultPosY, defaultScale);
     console.log('Auto-applied default Live2D settings');
   }, 2000); // Wait 2 seconds for model to load
+}
+
+/**
+ * Initialize connection status monitoring
+ */
+function initializeConnectionStatus(): void {
+  const connectionLight = document.getElementById('connection-light') as HTMLElement;
+  const connectionText = document.getElementById('connection-text') as HTMLElement;
+
+  if (!connectionLight || !connectionText) {
+    console.error('Connection status elements not found');
+    return;
+  }
+
+  // Function to ping the server
+  async function pingServer(): Promise<void> {
+    const startTime = Date.now();
+    const serverUrl = 'https://n8n.nextray.online';
+
+    try {
+      // Use the webhook endpoint that we know works
+      const response = await fetch(`${serverUrl}/webhook/e1d52c48-5940-4120-b059-68c2b202aeef`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId: `ping_${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          messageType: 'ping',
+          content: 'ping',
+          userId: 'system',
+          sender: 'system',
+          metadata: {
+            ping: true
+          }
+        })
+      });
+
+      const pingTime = Date.now() - startTime;
+
+      if (response.ok) {
+        // Update indicator based on ping time
+        updateConnectionStatus(pingTime);
+      } else {
+        updateConnectionStatus(-1); // Error state
+      }
+
+    } catch (error) {
+      console.error('Ping failed:', error);
+      updateConnectionStatus(-1); // Error state
+    }
+  }
+
+  // Function to update the visual indicator
+  function updateConnectionStatus(pingTime: number): void {
+    // Remove existing status classes
+    connectionLight.classList.remove('status-green', 'status-yellow', 'status-red');
+
+    let statusText = '';
+    let statusClass = '';
+
+    if (pingTime === -1) {
+      // Connection error
+      statusText = 'Offline';
+      statusClass = 'status-red';
+    } else if (pingTime < 200) {
+      // Good connection
+      statusText = `${pingTime}ms`;
+      statusClass = 'status-green';
+    } else if (pingTime < 700) {
+      // Moderate connection
+      statusText = `${pingTime}ms`;
+      statusClass = 'status-yellow';
+    } else {
+      // Poor connection
+      statusText = `${pingTime}ms`;
+      statusClass = 'status-red';
+    }
+
+    connectionLight.classList.add(statusClass);
+    connectionText.textContent = statusText;
+
+    console.log(`Connection status: ${statusText} (${statusClass})`);
+  }
+
+  // Initial ping
+  pingServer();
+
+  // Set up interval to ping every 1 second
+  setInterval(pingServer, 1000);
 }
 
 /**
@@ -1475,7 +1584,7 @@ function formatFileSize(bytes: number): string {
 /**
  * Send message with attachments
  */
-function sendMessageWithAttachments(input: HTMLInputElement, messagesContainer: HTMLElement): void {
+function sendMessageWithAttachments(input: HTMLTextAreaElement, messagesContainer: HTMLElement): void {
   const message = input.value.trim();
 
   console.log('📝 sendMessageWithAttachments called');

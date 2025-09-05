@@ -56,14 +56,67 @@
     }
 
     .chat-header {
-      padding: 20px;
+      padding: 10px;
       border-bottom: 1px solid #333;
       background-color: #2a2a2a;
     }
 
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .chat-header h1 {
-      font-size: 24px;
+      font-size: 14px;
       font-weight: 300;
+      margin: 0;
+    }
+
+    .connection-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .connection-light {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #666;
+      transition: background-color 0.3s ease;
+    }
+
+    .connection-light.status-green .connection-dot {
+      background-color: #28a745;
+      box-shadow: 0 0 6px rgba(40, 167, 69, 0.6);
+    }
+
+    .connection-light.status-yellow .connection-dot {
+      background-color: #ffc107;
+      box-shadow: 0 0 6px rgba(255, 193, 7, 0.6);
+    }
+
+    .connection-light.status-red .connection-dot {
+      background-color: #dc3545;
+      box-shadow: 0 0 6px rgba(220, 53, 69, 0.6);
+    }
+
+    .connection-text {
+      font-size: 12px;
+      color: #888;
+      font-weight: 500;
     }
 
     .chat-messages {
@@ -81,6 +134,9 @@
       border-radius: 18px;
       font-size: 14px;
       line-height: 1.4;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
 
     .message.user {
@@ -108,6 +164,9 @@
       opacity: 0.7;
       margin-top: 4px;
       text-align: right;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
 
     .message.user .message-timestamp {
@@ -319,7 +378,7 @@
       align-items: center;
     }
 
-    .chat-input input[type="text"] {
+    .chat-input textarea {
       flex: 1;
       padding: 12px 16px;
       border: 1px solid #444;
@@ -329,10 +388,20 @@
       font-size: 14px;
       outline: none;
       transition: border-color 0.3s;
+      resize: none;
+      overflow: hidden;
+      min-height: 20px;
+      max-height: 120px;
+      line-height: 1.4;
+      font-family: inherit;
     }
 
-    .chat-input input[type="text"]:focus {
+    .chat-input textarea:focus {
       border-color: #007bff;
+    }
+
+    .chat-input textarea::placeholder {
+      color: #888;
     }
 
     .tools-container {
@@ -885,6 +954,183 @@
       transform: translateY(-1px);
     }
 
+    /* Live2D Settings Button - Responsive */
+    .live2d-settings-btn {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      width: 40px;
+      height: 40px;
+      border: 1px solid #555;
+      border-radius: 50%;
+      background-color: #2a2a2a;
+      color: #ffffff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .live2d-settings-btn:hover {
+      border-color: #007bff;
+      background-color: #007bff;
+      transform: scale(1.05);
+    }
+
+    .live2d-settings-btn i {
+      font-size: 16px;
+    }
+
+    /* Live2D Settings Popup - Responsive */
+    .live2d-settings-popup {
+      position: absolute;
+      top: 70px;
+      left: 15px;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 12px;
+      padding: 0;
+      min-width: 280px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 1001;
+      display: none;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #444;
+    }
+
+    .settings-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .close-settings-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .close-settings-btn:hover {
+      background-color: #444;
+      color: #ffffff;
+    }
+
+    .settings-content {
+      padding: 20px;
+    }
+
+    .setting-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .setting-label {
+      min-width: 80px;
+      font-size: 14px;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .setting-slider {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #444;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .setting-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+    }
+
+    .setting-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+    }
+
+    .setting-value {
+      min-width: 45px;
+      font-size: 12px;
+      color: #007bff;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .setting-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .reset-btn, .apply-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .reset-btn {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    .reset-btn:hover {
+      background-color: #5a6268;
+      transform: translateY(-1px);
+    }
+
+    .apply-btn {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .apply-btn:hover {
+      background-color: #0056b3;
+      transform: translateY(-1px);
+    }
+
+    /* Responsive Design */
     @media (max-width: 768px) {
       .container {
         flex-direction: column;
@@ -896,6 +1142,184 @@
       }
       .chat-panel {
         height: 50vh;
+      }
+
+      /* Mobile Settings Button */
+      .live2d-settings-btn {
+        top: 10px;
+        left: 10px;
+        width: 36px;
+        height: 36px;
+      }
+
+      .live2d-settings-btn i {
+        font-size: 14px;
+      }
+
+      /* Mobile Settings Popup */
+      .live2d-settings-popup {
+        top: 55px;
+        left: 10px;
+        right: 10px;
+        min-width: auto;
+        max-width: calc(100vw - 20px);
+      }
+
+      .settings-header {
+        padding: 12px 16px;
+      }
+
+      .settings-header h3 {
+        font-size: 14px;
+      }
+
+      .settings-content {
+        padding: 16px;
+      }
+
+      .setting-group {
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .setting-label {
+        min-width: 70px;
+        font-size: 13px;
+      }
+
+      .setting-value {
+        min-width: 40px;
+        font-size: 11px;
+      }
+
+      .setting-actions {
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .reset-btn, .apply-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      /* Extra small screens */
+      .live2d-settings-btn {
+        top: 8px;
+        left: 8px;
+        width: 32px;
+        height: 32px;
+      }
+
+      .live2d-settings-btn i {
+        font-size: 12px;
+      }
+
+      .live2d-settings-popup {
+        top: 45px;
+        left: 8px;
+        right: 8px;
+        max-width: calc(100vw - 16px);
+      }
+
+      .settings-header {
+        padding: 10px 12px;
+      }
+
+      .settings-header h3 {
+        font-size: 13px;
+      }
+
+      .settings-content {
+        padding: 12px;
+      }
+
+      .setting-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .setting-label {
+        min-width: 80px;
+        font-size: 14px;
+        color: #ffffff;
+        font-weight: 500;
+      }
+
+      .setting-slider {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+      }
+
+      .setting-slider::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+      }
+
+      .setting-value {
+        min-width: 45px;
+        font-size: 12px;
+        color: #007bff;
+        font-weight: 600;
+        text-align: right;
+      }
+
+      .setting-actions {
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .reset-btn, .apply-btn {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      /* Mobile connection indicator */
+      .connection-indicator {
+        gap: 6px;
+      }
+
+      .connection-light {
+        width: 14px;
+        height: 14px;
+      }
+
+      .connection-dot {
+        width: 6px;
+        height: 6px;
+      }
+
+      .connection-text {
+        font-size: 11px;
+      }
+
+      /* Ensure chat buttons remain circular on mobile */
+      .audio-btn, .tool-btn, .attachment-btn {
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 50% !important;
+        flex-shrink: 0;
+      }
+
+      .audio-btn i, .tool-btn i, .attachment-btn i {
+        font-size: 14px !important;
+      }
+
+      /* Adjust chat input area for mobile */
+      .chat-input {
+        gap: 6px;
+      }
+
+      .chat-input textarea {
+        font-size: 14px;
+        padding: 10px 14px;
+        min-height: 18px;
+        max-height: 100px;
       }
     }
   </style>
@@ -948,6 +1372,12 @@
     <div class="chat-panel">
       <div class="chat-header">
         <h1>Etra - Enhanced Textual Responsive Assistant</h1>
+        <div class="connection-indicator">
+          <div id="connection-light" class="connection-light" title="Connection Status">
+            <div class="connection-dot"></div>
+          </div>
+          <span id="connection-text" class="connection-text">Checking...</span>
+        </div>
       </div>
       <div class="chat-messages" id="chat-messages">
         <div class="message bot">Hello! I'm Etra. How can I help you today? ╰(*°▽°*)╯</div>
@@ -955,7 +1385,7 @@
       <div class="chat-input-area">
         <div class="chat-input" id="chat-input-container">
           <button id="audio-btn" class="audio-btn" title="Record Audio"><i class="fas fa-microphone"></i></button>
-          <input type="text" id="chat-input" placeholder="Type your message..." />
+          <textarea id="chat-input" placeholder="Type here" rows="1"></textarea>
           <input type="file" id="file-input" accept="image/*,audio/*,.pdf,.txt,.doc,.docx" style="display: none;" multiple />
           <div class="tools-container">
             <button id="tools-button" class="tool-btn" title="Tools"><i class="fas fa-cog"></i></button>
