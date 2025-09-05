@@ -55,6 +55,9 @@ window.addEventListener(
 
     // Initialize chat functionality
     initializeChat();
+  
+    // Initialize Live2D settings
+    initializeLive2DSettings();
   },
   { passive: true }
 );
@@ -340,6 +343,131 @@ function sendMessage(input: HTMLInputElement, messagesContainer: HTMLElement): v
   //     handleWebhookResponse(botMessageData.id, success);
   //   });
   // }, 2000);
+}
+
+/**
+ * Initialize Live2D settings functionality
+ */
+function initializeLive2DSettings(): void {
+  const settingsBtn = document.getElementById('live2d-settings-btn') as HTMLButtonElement;
+  const settingsPopup = document.getElementById('live2d-settings-popup') as HTMLElement;
+  const closeBtn = document.getElementById('close-settings-btn') as HTMLButtonElement;
+  const resetBtn = document.getElementById('reset-settings-btn') as HTMLButtonElement;
+  const applyBtn = document.getElementById('apply-settings-btn') as HTMLButtonElement;
+
+  // Sliders and value displays
+  const positionXSlider = document.getElementById('position-x-slider') as HTMLInputElement;
+  const positionYSlider = document.getElementById('position-y-slider') as HTMLInputElement;
+  const scaleSlider = document.getElementById('scale-slider') as HTMLInputElement;
+  const positionXValue = document.getElementById('position-x-value') as HTMLElement;
+  const positionYValue = document.getElementById('position-y-value') as HTMLElement;
+  const scaleValue = document.getElementById('scale-value') as HTMLElement;
+
+  if (!settingsBtn || !settingsPopup || !closeBtn || !resetBtn || !applyBtn ||
+      !positionXSlider || !positionYSlider || !scaleSlider) {
+    console.error('Live2D settings elements not found');
+    return;
+  }
+
+  // Settings button click - show/hide popup
+  settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isVisible = settingsPopup.style.display === 'block';
+    settingsPopup.style.display = isVisible ? 'none' : 'block';
+  });
+
+  // Close button click
+  closeBtn.addEventListener('click', () => {
+    settingsPopup.style.display = 'none';
+  });
+
+  // Close popup when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!settingsBtn.contains(e.target as Node) && !settingsPopup.contains(e.target as Node)) {
+      settingsPopup.style.display = 'none';
+    }
+  });
+
+  // Update value displays when sliders change
+  positionXSlider.addEventListener('input', () => {
+    positionXValue.textContent = parseFloat(positionXSlider.value).toFixed(2);
+  });
+
+  positionYSlider.addEventListener('input', () => {
+    positionYValue.textContent = parseFloat(positionYSlider.value).toFixed(2);
+  });
+
+  scaleSlider.addEventListener('input', () => {
+    scaleValue.textContent = parseFloat(scaleSlider.value).toFixed(2);
+  });
+
+  // Reset button - restore default values
+  resetBtn.addEventListener('click', () => {
+    positionXSlider.value = '0';
+    positionYSlider.value = '-0.68';
+    scaleSlider.value = '3.34';
+    positionXValue.textContent = '0.00';
+    positionYValue.textContent = '-0.68';
+    scaleValue.textContent = '3.34';
+  });
+
+  // Apply button - update Live2D model
+  applyBtn.addEventListener('click', () => {
+    const posX = parseFloat(positionXSlider.value);
+    const posY = parseFloat(positionYSlider.value);
+    const scale = parseFloat(scaleSlider.value);
+
+    updateLive2DModel(posX, posY, scale);
+    settingsPopup.style.display = 'none';
+  });
+
+  // Auto-apply default settings when model loads
+  setTimeout(() => {
+    const defaultPosX = parseFloat(positionXSlider.value);
+    const defaultPosY = parseFloat(positionYSlider.value);
+    const defaultScale = parseFloat(scaleSlider.value);
+
+    updateLive2DModel(defaultPosX, defaultPosY, defaultScale);
+    console.log('Auto-applied default Live2D settings');
+  }, 2000); // Wait 2 seconds for model to load
+}
+
+/**
+ * Update Live2D model position and scale
+ */
+function updateLive2DModel(posX: number, posY: number, scale: number): void {
+  // Get the subdelegate from LAppDelegate
+  const delegate = LAppDelegate.getInstance();
+  if (!delegate) return;
+
+  // Access the first subdelegate (assuming single canvas setup)
+  const subdelegates = (delegate as any)._subdelegates;
+  if (!subdelegates || subdelegates.getSize() === 0) return;
+
+  const subdelegate = subdelegates.at(0);
+  if (!subdelegate) return;
+
+  // Get the Live2D manager from subdelegate
+  const live2DManager = subdelegate.getLive2DManager();
+  if (!live2DManager) return;
+
+  // Get the current model
+  const models = (live2DManager as any)._models;
+  if (!models || models.getSize() === 0) return;
+
+  const model = models.at(0);
+  if (!model) return;
+
+  // Update model matrix with new position and scale
+  const modelMatrix = model.getModelMatrix();
+  if (modelMatrix) {
+    // Reset matrix and apply new transformations
+    modelMatrix.loadIdentity();
+    modelMatrix.scale(scale, scale);
+    modelMatrix.translate(posX, posY);
+
+    console.log(`Live2D Model updated: Position(${posX.toFixed(2)}, ${posY.toFixed(2)}), Scale(${scale.toFixed(2)})`);
+  }
 }
 
 /**

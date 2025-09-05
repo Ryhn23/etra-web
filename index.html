@@ -709,6 +709,182 @@
       100% { transform: scale(1); opacity: 1; }
     }
 
+    /* Live2D Settings Button */
+    .live2d-settings-btn {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      width: 40px;
+      height: 40px;
+      border: 1px solid #555;
+      border-radius: 50%;
+      background-color: #2a2a2a;
+      color: #ffffff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .live2d-settings-btn:hover {
+      border-color: #007bff;
+      background-color: #007bff;
+      transform: scale(1.05);
+    }
+
+    .live2d-settings-btn i {
+      font-size: 16px;
+    }
+
+    /* Live2D Settings Popup */
+    .live2d-settings-popup {
+      position: absolute;
+      top: 70px;
+      left: 15px;
+      background-color: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 12px;
+      padding: 0;
+      min-width: 280px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      z-index: 1001;
+      display: none;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #444;
+    }
+
+    .settings-header h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .close-settings-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .close-settings-btn:hover {
+      background-color: #444;
+      color: #ffffff;
+    }
+
+    .settings-content {
+      padding: 20px;
+    }
+
+    .setting-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .setting-label {
+      min-width: 80px;
+      font-size: 14px;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .setting-slider {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #444;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .setting-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+    }
+
+    .setting-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #007bff;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+    }
+
+    .setting-value {
+      min-width: 45px;
+      font-size: 12px;
+      color: #007bff;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .setting-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .reset-btn, .apply-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .reset-btn {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    .reset-btn:hover {
+      background-color: #5a6268;
+      transform: translateY(-1px);
+    }
+
+    .apply-btn {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .apply-btn:hover {
+      background-color: #0056b3;
+      transform: translateY(-1px);
+    }
+
     @media (max-width: 768px) {
       .container {
         flex-direction: column;
@@ -731,6 +907,40 @@
 <body>
   <div class="container">
     <div class="live2d-panel">
+      <!-- Settings Button -->
+      <button id="live2d-settings-btn" class="live2d-settings-btn" title="Live2D Settings">
+        <i class="fas fa-sliders-h"></i>
+      </button>
+
+      <!-- Settings Popup -->
+      <div id="live2d-settings-popup" class="live2d-settings-popup">
+        <div class="settings-header">
+          <h3>Live2D Settings</h3>
+          <button id="close-settings-btn" class="close-settings-btn">×</button>
+        </div>
+        <div class="settings-content">
+          <div class="setting-group">
+            <label class="setting-label">Position X:</label>
+            <input type="range" id="position-x-slider" class="setting-slider" min="-5" max="5" step="0.01" value="0">
+            <span id="position-x-value" class="setting-value">0.00</span>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">Position Y:</label>
+            <input type="range" id="position-y-slider" class="setting-slider" min="-5" max="5" step="0.01" value="-0.68">
+            <span id="position-y-value" class="setting-value">-0.68</span>
+          </div>
+          <div class="setting-group">
+            <label class="setting-label">Scale:</label>
+            <input type="range" id="scale-slider" class="setting-slider" min="0.5" max="5.0" step="0.01" value="3.34">
+            <span id="scale-value" class="setting-value">3.34</span>
+          </div>
+          <div class="setting-actions">
+            <button id="reset-settings-btn" class="reset-btn">Reset</button>
+            <button id="apply-settings-btn" class="apply-btn">Apply</button>
+          </div>
+        </div>
+      </div>
+
       <div class="live2d-widget">
         <!-- Live2D canvas will be inserted here -->
       </div>

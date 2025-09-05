@@ -98,6 +98,8 @@ export class LAppLive2DManager {
         projection.scale(height / width, 1.0);
       }
 
+      // No additional projection matrix modifications needed
+
       // 必要があればここで乗算
       if (this._viewMatrix != null) {
         projection.multiplyByMatrix(this._viewMatrix);

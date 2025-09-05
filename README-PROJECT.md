@@ -36,24 +36,24 @@ npm run dev
 **Terminal 1 - Frontend:**
 ```bash
 npm start
-# Akan berjalan di: http://localhost:5003
+# Akan berjalan di: http://localhost:5000
 ```
 
 **Terminal 2 - Webhook Server:**
 ```bash
 npm run webhook
-# Akan berjalan di: http://localhost:3001
+# Akan berjalan di: http://localhost:3002
 ```
 
 ### 3. Akses Aplikasi
-- **Frontend:** http://localhost:5003
-- **Webhook Server:** http://localhost:3001
-- **Health Check:** http://localhost:3001/health
+- **Frontend:** http://localhost:5000
+- **Webhook Server:** http://localhost:3002
+- **Health Check:** http://localhost:3002/health
 
 ## 🎯 Features Overview
 
 ### ✅ Core Features
-- **Live2D Character** (Haru model) - 40% left panel
+- **Live2D Character** (Haru & jingliu models) - 40% left panel, cropped to show upper body only
 - **Real-time Chat** dengan AI via n8n
 - **File Upload** (images, audio, documents)
 - **Audio Recording** (OGG format)
@@ -159,7 +159,7 @@ npm install -g ngrok
 
 **Run ngrok:**
 ```bash
-ngrok http 3001
+ngrok http 3002
 ```
 
 **Update n8n webhook URL:**
@@ -170,7 +170,7 @@ https://[ngrok-generated-url]/webhook/chat-response
 ## 🧪 Testing Features
 
 ### Test Text Chat
-1. Buka http://localhost:5003
+1. Buka http://localhost:5000
 2. Ketik pesan di input field
 3. Klik Send atau tekan Enter
 4. Pesan akan dikirim ke n8n
@@ -207,7 +207,14 @@ etra_web/
 │   ├── lappdelegate.ts      # Live2D delegate
 │   ├── lappdefine.ts        # Configuration constants
 │   └── ...                  # Other Live2D files
-├── public/                  # Static assets
+├── public/
+│   ├── Core/                # Live2D Core files
+│   ├── Framework/           # Live2D Framework
+│   └── Resources/
+│       ├── Haru/            # Haru Live2D model
+│       ├── jingliu/         # jingliu Live2D model
+│       ├── back_class_normal.png
+│       └── icon_gear.png
 ├── webhook-server.js        # Express webhook server
 ├── package.json             # Dependencies & scripts
 ├── index.html               # Main HTML file
@@ -226,7 +233,7 @@ npm run build:prod
 # .env file
 WEBHOOK_URL=https://your-n8n-webhook-url
 NODE_ENV=production
-PORT=3001
+PORT=3002
 ```
 
 ### PM2 Process Manager
@@ -237,7 +244,7 @@ npm install -g pm2
 pm2 start webhook-server.js --name "etra-webhook"
 
 # Run frontend (static files)
-pm2 serve dist 5003 --name "etra-frontend"
+pm2 serve dist 5000 --name "etra-frontend"
 ```
 
 ## 🔧 Troubleshooting
@@ -246,11 +253,11 @@ pm2 serve dist 5003 --name "etra-frontend"
 
 **1. Port already in use:**
 ```bash
-# Kill process on port 3001
-npx kill-port 3001
+# Kill process on port 3002
+npx kill-port 3002
 
 # Or find and kill
-netstat -ano | findstr :3001
+netstat -ano | findstr :3002
 taskkill /PID <PID> /F
 ```
 
@@ -259,7 +266,7 @@ taskkill /PID <PID> /F
 - Atau izinkan microphone di browser settings
 
 **3. WebSocket connection failed:**
-- Pastikan webhook server running di port 3001
+- Pastikan webhook server running di port 3002
 - Cek firewall settings
 
 **4. File upload failed:**
@@ -276,12 +283,12 @@ taskkill /PID <PID> /F
 
 **Check webhook server:**
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3002/health
 ```
 
 **Test webhook endpoint:**
 ```bash
-curl -X POST http://localhost:3001/webhook/chat-response \
+curl -X POST http://localhost:3002/webhook/chat-response \
   -H "Content-Type: application/json" \
   -d '{"response": "Test", "userId": "test"}'
 ```
@@ -293,7 +300,7 @@ ngrok tunnels
 
 ## 📊 API Endpoints
 
-### Webhook Server (Port 3001)
+### Webhook Server (Port 3002)
 
 **POST /webhook/chat-response**
 - Receive AI responses from n8n
@@ -310,9 +317,9 @@ ngrok tunnels
 **POST /test**
 - Test endpoint for debugging
 
-### Frontend (Port 5003)
+### Frontend (Port 5000)
 
-**WebSocket: ws://localhost:3001**
+**WebSocket: ws://localhost:3002**
 - Real-time communication
 - Receive messages from webhook server
 

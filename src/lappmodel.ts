@@ -389,6 +389,12 @@ export class LAppModel extends CubismUserModel {
 
       this._modelSetting.getLayoutMap(layout);
       this._modelMatrix.setupFromLayout(layout);
+
+      // Apply transformation to show only upper body
+      // Scale up proportionally and translate down to crop lower body
+      this._modelMatrix.scaleRelative(1.5, 1.5);  // Scale up 50% for closer view
+      this._modelMatrix.translateRelative(0.0, -0.25);  // Move down to show upper body (negative Y)
+
       this._state = LoadStep.LoadMotion;
 
       // callback

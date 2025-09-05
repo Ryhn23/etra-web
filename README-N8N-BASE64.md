@@ -228,7 +228,7 @@ curl -X POST http://localhost:3002/webhook/base64-content \
   -H "Content-Type: application/json" \
   -d @test-n8n-base64.json
 
-# Test enhanced chat-response endpoint  
+# Test enhanced chat-response endpoint
 curl -X POST http://localhost:3002/webhook/chat-response \
   -H "Content-Type: application/json" \
   -d @test-n8n-base64.json
