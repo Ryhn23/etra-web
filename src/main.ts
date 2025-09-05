@@ -429,6 +429,15 @@ function initializeLive2DSettings(): void {
     scaleValue.textContent = '3.34';
   });
 
+  // Change Model button
+  const changeModelBtn = document.getElementById('change-model-btn') as HTMLButtonElement;
+  if (changeModelBtn) {
+    changeModelBtn.addEventListener('click', () => {
+      changeLive2DModel();
+      settingsPopup.style.display = 'none';
+    });
+  }
+
   // Apply button - update Live2D model
   applyBtn.addEventListener('click', () => {
     const posX = parseFloat(positionXSlider.value);
@@ -465,36 +474,20 @@ function initializeConnectionStatus(): void {
   // Function to ping the server
   async function pingServer(): Promise<void> {
     const startTime = Date.now();
-    const serverUrl = 'https://n8n.nextray.online';
+    const serverUrl = 'https://nextray.online';
 
     try {
-      // Use the webhook endpoint that we know works
-      const response = await fetch(`${serverUrl}/webhook/e1d52c48-5940-4120-b059-68c2b202aeef`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messageId: `ping_${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          messageType: 'ping',
-          content: 'ping',
-          userId: 'system',
-          sender: 'system',
-          metadata: {
-            ping: true
-          }
-        })
+      // Ping nextray.online directly (simple HEAD request)
+      const response = await fetch(serverUrl, {
+        method: 'HEAD',
+        mode: 'no-cors'
       });
 
       const pingTime = Date.now() - startTime;
 
-      if (response.ok) {
-        // Update indicator based on ping time
-        updateConnectionStatus(pingTime);
-      } else {
-        updateConnectionStatus(-1); // Error state
-      }
+      // Since we're using no-cors mode, we can't check response.ok
+      // We'll assume success if no error was thrown
+      updateConnectionStatus(pingTime);
 
     } catch (error) {
       console.error('Ping failed:', error);
@@ -539,6 +532,29 @@ function initializeConnectionStatus(): void {
 
   // Set up interval to ping every 1 second
   setInterval(pingServer, 1000);
+}
+
+/**
+ * Change to the next Live2D model
+ */
+function changeLive2DModel(): void {
+  // Get the Live2D manager and switch to next model
+  const delegate = LAppDelegate.getInstance();
+  if (!delegate) return;
+
+  // Access the first subdelegate
+  const subdelegates = (delegate as any)._subdelegates;
+  if (!subdelegates || subdelegates.getSize() === 0) return;
+
+  const subdelegate = subdelegates.at(0);
+  if (!subdelegate) return;
+
+  // Get the Live2D manager and switch to next scene
+  const live2DManager = subdelegate.getLive2DManager();
+  if (!live2DManager) return;
+
+  live2DManager.nextScene();
+  console.log('Switched to next Live2D model');
 }
 
 /**
