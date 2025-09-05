@@ -10,7 +10,8 @@ import * as LAppDefine from './lappdefine';
 
 // Configuration
 const CONFIG = {
-  WEBHOOK_URL: 'https://n8n.nextray.online/webhook/e1d52c48-5940-4120-b059-68c2b202aeef',
+  WEBHOOK_URL: process.env.WEBHOOK_URL || 'https://n8n.nextray.online/webhook/e1d52c48-5940-4120-b059-68c2b202aeef',
+  CHAT_HISTORY_WEBHOOK_URL: process.env.CHAT_HISTORY_WEBHOOK_URL || 'https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e',
   MAX_FILE_SIZE: 100 * 1024 * 1024, // 10MB
   SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   SUPPORTED_AUDIO_TYPES: ['audio/mpeg', 'audio/wav', 'audio/ogg'],
@@ -552,7 +553,7 @@ function addChatHistoryUI(): void {
 async function loadInitialChatHistory(): Promise<void> {
   try {
     const userId = getUserId();
-    const response = await fetch(`https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e`, {
+    const response = await fetch(CONFIG.CHAT_HISTORY_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -614,7 +615,7 @@ async function loadMoreChatHistory(): Promise<void> {
     const userId = getUserId();
     const existingMessages = document.querySelectorAll('.message').length;
 
-    const response = await fetch(`https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e`, {
+    const response = await fetch(CONFIG.CHAT_HISTORY_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1668,7 +1669,7 @@ let activeTool: string | null = null;
 let isRecording: boolean = false;
 let recordedAudio: File | null = null;
 let recordingStartTime: number = 0;
-let recordingTimerInterval: number | null = null;
+let recordingTimerInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Initialize audio recording functionality
@@ -2267,7 +2268,7 @@ function initializeScrollToBottomPositioning(scrollToBottomBtn: HTMLElement): vo
 // Test function for webhook connection
 (window as any).testWebhookConnection = async (action = 'load_history', userId = 'test_user', useProxy = false) => {
   console.log('🧪 Testing webhook connection...');
-  const webhookUrl = 'https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e';
+  const webhookUrl = CONFIG.CHAT_HISTORY_WEBHOOK_URL;
   const proxyUrl = 'https://cors-anywhere.herokuapp.com/' + webhookUrl;
 
   const finalUrl = useProxy ? proxyUrl : webhookUrl;
@@ -2368,7 +2369,7 @@ async function saveBotMessageToHistory(messageData: MessageData): Promise<void> 
 
     console.log('Auto-saving bot message to history:', payload);
 
-    const response = await fetch('https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e', {
+    const response = await fetch(CONFIG.CHAT_HISTORY_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

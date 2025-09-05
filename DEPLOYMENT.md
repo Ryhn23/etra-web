@@ -86,7 +86,7 @@ sudo chown -R $USER:$USER /var/www
 
 # Clone repository
 cd /var/www
-git clone git@github.com:your-username/etra-web.git
+git clone git@github.com:Ryhn23/etra-web.git
 cd etra-web
 ```
 

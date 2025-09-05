@@ -46,7 +46,7 @@ module.exports = {
       user: 'node',
       host: 'your-vps-ip',
       ref: 'origin/main',
-      repo: 'git@github.com:your-username/etra-web.git',
+      repo: 'git@github.com:Ryhn23/etra-web.git',
       path: '/home/node/etra-web',
       'pre-deploy-local': '',
       'post-deploy': 'npm install && npm run build:prod && pm2 reload ecosystem.config.js --env production',

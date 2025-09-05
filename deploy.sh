@@ -90,7 +90,7 @@ if [ -d "$APP_DIR/.git" ]; then
     git pull origin main
 else
     log_info "📥 Cloning repository..."
-    git clone https://github.com/your-username/etra-web.git $APP_DIR
+    git clone https://github.com/Ryhn23/etra-web.git $APP_DIR
     cd $APP_DIR
 fi
 
