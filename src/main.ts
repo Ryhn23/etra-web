@@ -335,6 +335,7 @@ function sendMessage(input: HTMLInputElement, messagesContainer: HTMLElement): v
 
   // Clear input
   input.value = '';
+  input.style.height = 'auto'; // Reset textarea height
 
   // Send to webhook
   sendToWebhook(messageData).then(success => {
@@ -397,19 +398,46 @@ function initializeLive2DSettings(): void {
   // Settings button click - show/hide popup
   settingsBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isVisible = settingsPopup.style.display === 'block';
-    settingsPopup.style.display = isVisible ? 'none' : 'block';
+    console.log('🎛️ Live2D settings button clicked');
+    console.log('📍 Button element:', settingsBtn);
+    console.log('📍 Popup element:', settingsPopup);
+
+    const isVisible = settingsPopup.classList.contains('show');
+    console.log('👁️ Current popup visibility:', isVisible ? 'visible' : 'hidden');
+
+    if (isVisible) {
+      settingsPopup.classList.remove('show');
+      console.log('🔄 Popup hidden');
+    } else {
+      settingsPopup.classList.add('show');
+      console.log('🔄 Popup shown');
+
+      // Adjust positioning for mobile if needed
+      if (window.innerWidth <= 768) {
+        settingsPopup.style.top = '118px'; // Below mobile header + button
+        settingsPopup.style.position = 'fixed';
+        settingsPopup.style.zIndex = '10000';
+        console.log('📱 Mobile positioning applied');
+      } else {
+        settingsPopup.style.top = '70px'; // Desktop positioning
+        settingsPopup.style.position = 'absolute';
+        settingsPopup.style.zIndex = '1001';
+        console.log('💻 Desktop positioning applied');
+      }
+    }
   });
 
   // Close button click
   closeBtn.addEventListener('click', () => {
-    settingsPopup.style.display = 'none';
+    settingsPopup.classList.remove('show');
+    console.log('❌ Settings popup closed via close button');
   });
 
   // Close popup when clicking outside
   document.addEventListener('click', (e) => {
     if (!settingsBtn.contains(e.target as Node) && !settingsPopup.contains(e.target as Node)) {
-      settingsPopup.style.display = 'none';
+      settingsPopup.classList.remove('show');
+      console.log('❌ Settings popup closed via outside click');
     }
   });
 
@@ -441,7 +469,8 @@ function initializeLive2DSettings(): void {
   if (changeModelBtn) {
     changeModelBtn.addEventListener('click', () => {
       changeLive2DModel();
-      settingsPopup.style.display = 'none';
+      settingsPopup.classList.remove('show');
+      console.log('🔄 Model changed and popup closed');
     });
   }
 
@@ -452,7 +481,8 @@ function initializeLive2DSettings(): void {
     const scale = parseFloat(scaleSlider.value);
 
     updateLive2DModel(posX, posY, scale);
-    settingsPopup.style.display = 'none';
+    settingsPopup.classList.remove('show');
+    console.log('✅ Settings applied and popup closed');
   });
 
   // Auto-apply default settings when model loads
@@ -757,10 +787,11 @@ function createHistoricalMessageElement(message: any): HTMLElement {
  * Initialize connection status monitoring
  */
 function initializeConnectionStatus(): void {
-  const connectionLight = document.getElementById('connection-light') as HTMLElement;
-  const connectionText = document.getElementById('connection-text') as HTMLElement;
+  // Get all connection status elements (both mobile and desktop headers)
+  const connectionLights = document.querySelectorAll('#connection-light') as NodeListOf<HTMLElement>;
+  const connectionTexts = document.querySelectorAll('#connection-text') as NodeListOf<HTMLElement>;
 
-  if (!connectionLight || !connectionText) {
+  if (connectionLights.length === 0 || connectionTexts.length === 0) {
     console.error('Connection status elements not found');
     return;
   }
@@ -791,9 +822,6 @@ function initializeConnectionStatus(): void {
 
   // Function to update the visual indicator
   function updateConnectionStatus(pingTime: number): void {
-    // Remove existing status classes
-    connectionLight.classList.remove('status-green', 'status-yellow', 'status-red');
-
     let statusText = '';
     let statusClass = '';
 
@@ -815,8 +843,15 @@ function initializeConnectionStatus(): void {
       statusClass = 'status-red';
     }
 
-    connectionLight.classList.add(statusClass);
-    connectionText.textContent = statusText;
+    // Update all connection status elements
+    connectionLights.forEach(light => {
+      light.classList.remove('status-green', 'status-yellow', 'status-red');
+      light.classList.add(statusClass);
+    });
+
+    connectionTexts.forEach(text => {
+      text.textContent = statusText;
+    });
 
     console.log(`Connection status: ${statusText} (${statusClass})`);
   }
@@ -1285,6 +1320,12 @@ function sendRecording(): void {
   // Clear attachments and recorded audio
   currentAttachments = [];
   recordedAudio = null;
+
+  // Reset chat input height
+  const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
+  if (chatInput) {
+    chatInput.style.height = 'auto';
+  }
 
   // Send to webhook with file data
   console.log('🎤 Sending recording to webhook...');
@@ -1972,6 +2013,7 @@ function sendMessageWithAttachments(input: HTMLTextAreaElement, messagesContaine
 
   // Clear input and attachments immediately for UI
   input.value = '';
+  input.style.height = 'auto'; // Reset textarea height
   currentAttachments = [];
   updateAttachmentsPreview();
 
@@ -2110,12 +2152,23 @@ function initializeScrollToBottomPositioning(scrollToBottomBtn: HTMLElement): vo
 
   // Function to update button position
   function updateButtonPosition(): void {
+    const chatPanel = document.querySelector('.chat-panel') as HTMLElement;
     const chatInputRect = chatInputArea.getBoundingClientRect();
     const buttonHeight = 50; // Button height
     const margin = 20; // Margin from chat input
 
-    // Calculate new bottom position
-    const newBottom = window.innerHeight - chatInputRect.top + margin;
+    // Check if we're on mobile (chat panel overlay mode)
+    const isMobile = window.innerWidth <= 768;
+    let newBottom;
+
+    if (isMobile && chatPanel) {
+      // Mobile: Position relative to chat panel (which is fixed at bottom)
+      const chatPanelRect = chatPanel.getBoundingClientRect();
+      newBottom = window.innerHeight - chatPanelRect.top + margin;
+    } else {
+      // Desktop: Position relative to chat input area
+      newBottom = window.innerHeight - chatInputRect.top + margin;
+    }
 
     // Ensure button doesn't go too high or too low
     const minBottom = buttonHeight + 20; // Minimum distance from bottom
@@ -2170,6 +2223,45 @@ function initializeScrollToBottomPositioning(scrollToBottomBtn: HTMLElement): vo
   addMessage(document.getElementById('chat-messages') as HTMLElement, 'Test image with file size display', 'bot', undefined, [
     { data: testBase64, type: 'image/png', name: 'test_image.png' }
   ]);
+};
+
+// Test function for Live2D settings popup
+(window as any).testLive2DSettings = () => {
+  console.log('🧪 Testing Live2D settings popup...');
+  const settingsBtn = document.getElementById('live2d-settings-btn') as HTMLButtonElement;
+  const settingsPopup = document.getElementById('live2d-settings-popup') as HTMLElement;
+
+  console.log('🎛️ Settings button:', settingsBtn);
+  console.log('📍 Settings popup:', settingsPopup);
+
+  if (settingsBtn && settingsPopup) {
+    console.log('✅ Elements found');
+    console.log('📍 Button position:', settingsBtn.getBoundingClientRect());
+    console.log('📍 Popup position:', settingsPopup.getBoundingClientRect());
+    console.log('👁️ Popup classes:', settingsPopup.classList);
+    console.log('🎯 Popup z-index:', settingsPopup.style.zIndex);
+    console.log('📱 Is mobile:', window.innerWidth <= 768);
+
+    // Force show popup for testing
+    settingsPopup.classList.add('show');
+
+    // Apply appropriate positioning
+    if (window.innerWidth <= 768) {
+      settingsPopup.style.top = '118px';
+      settingsPopup.style.position = 'fixed';
+      settingsPopup.style.zIndex = '10000';
+      console.log('📱 Applied mobile positioning');
+    } else {
+      settingsPopup.style.top = '70px';
+      settingsPopup.style.position = 'absolute';
+      settingsPopup.style.zIndex = '1001';
+      console.log('💻 Applied desktop positioning');
+    }
+
+    console.log('🔄 Forced popup to show with unified approach');
+  } else {
+    console.error('❌ Elements not found');
+  }
 };
 
 // Test function for webhook connection

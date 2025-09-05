@@ -130,8 +130,25 @@ export class LAppView {
       const x: number = width * 0.5;
       const y: number = height * 0.5;
 
-      const fwidth = textureInfo.width * 0.4;
-      const fheight = height * 1;
+      // Calculate aspect ratio to maintain proportions
+      const imageAspectRatio = textureInfo.width / textureInfo.height;
+      const screenAspectRatio = width / height;
+
+      let fwidth, fheight;
+
+      // Check if we're on mobile (screen width < 768px)
+      const isMobile = window.innerWidth < 768;
+
+      if (isMobile) {
+        // For mobile: scale to fill screen height while maintaining aspect ratio
+        fheight = height;
+        fwidth = height * imageAspectRatio;
+      } else {
+        // Desktop: use original scaling
+        fwidth = textureInfo.width * 0.4;
+        fheight = height * 1;
+      }
+
       this._back = new LAppSprite(x, y, fwidth, fheight, textureInfo.id);
       this._back.setSubdelegate(this._subdelegate);
     };
