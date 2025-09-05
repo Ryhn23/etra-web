@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  etra-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: etra-web
+    restart: unless-stopped
+    ports:
+      - "3002:3002"   # Webhook server
+      - "5000:5000"   # Frontend
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - WEBHOOK_URL=https://your-n8n-webhook-url
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    networks:
+      - etra-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: etra-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - etra-web
+    networks:
+      - etra-network
+
+  # Optional: Redis for session storage (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: etra-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - etra-network
+
+networks:
+  etra-network:
+    driver: bridge
+
+volumes:
+  redis_data:
