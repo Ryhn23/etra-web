@@ -41,6 +41,8 @@ npm start
 
 **Terminal 2 - Webhook Server:**
 ```bash
+ngrok http --url=marginally-master-mosquito.ngrok-free.app 3002
+# Atau
 npm run webhook
 # Akan berjalan di: http://localhost:3002
 ```
