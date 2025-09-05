@@ -502,10 +502,13 @@ function addChatHistoryUI(): void {
   const scrollToBottomBtn = document.createElement('button');
   scrollToBottomBtn.id = 'scroll-to-bottom-btn';
   scrollToBottomBtn.className = 'scroll-to-bottom-btn';
-  scrollToBottomBtn.innerHTML = '⬇️';
+  scrollToBottomBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
   scrollToBottomBtn.title = 'Scroll to bottom';
   scrollToBottomBtn.style.display = 'none';
   document.body.appendChild(scrollToBottomBtn);
+
+  // Initialize dynamic positioning for scroll to bottom button
+  initializeScrollToBottomPositioning(scrollToBottomBtn);
 
 
   // Add event listeners
@@ -2095,6 +2098,69 @@ function getSessionId(): string {
     sessionStorage.setItem('chatbot_session_id', sessionId);
   }
   return sessionId;
+}
+
+/**
+ * Initialize dynamic positioning for scroll to bottom button
+ */
+function initializeScrollToBottomPositioning(scrollToBottomBtn: HTMLElement): void {
+  const chatInputArea = document.querySelector('.chat-input-area') as HTMLElement;
+
+  if (!chatInputArea) return;
+
+  // Function to update button position
+  function updateButtonPosition(): void {
+    const chatInputRect = chatInputArea.getBoundingClientRect();
+    const buttonHeight = 50; // Button height
+    const margin = 20; // Margin from chat input
+
+    // Calculate new bottom position
+    const newBottom = window.innerHeight - chatInputRect.top + margin;
+
+    // Ensure button doesn't go too high or too low
+    const minBottom = buttonHeight + 20; // Minimum distance from bottom
+    const maxBottom = window.innerHeight - 100; // Maximum distance from top
+
+    const finalBottom = Math.max(minBottom, Math.min(newBottom, maxBottom));
+
+    scrollToBottomBtn.style.bottom = `${finalBottom}px`;
+  }
+
+  // Initial position update
+  updateButtonPosition();
+
+  // Watch for changes in chat input area height
+  const resizeObserver = new ResizeObserver(() => {
+    updateButtonPosition();
+  });
+
+  resizeObserver.observe(chatInputArea);
+
+  // Also watch for window resize
+  window.addEventListener('resize', updateButtonPosition);
+
+  // Watch for DOM changes that might affect chat input area
+  const mutationObserver = new MutationObserver(() => {
+    updateButtonPosition();
+  });
+
+  mutationObserver.observe(chatInputArea, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+    attributeFilter: ['style', 'class']
+  });
+
+  // Watch for active tool indicator changes
+  const activeToolIndicator = document.getElementById('active-tool-indicator');
+  if (activeToolIndicator) {
+    mutationObserver.observe(activeToolIndicator, {
+      attributes: true,
+      attributeFilter: ['style']
+    });
+  }
+
+  console.log('Dynamic scroll to bottom button positioning initialized');
 }
 
 // Test function for debugging image display
