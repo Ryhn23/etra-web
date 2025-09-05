@@ -61,6 +61,9 @@ window.addEventListener(
   
     // Initialize connection status monitoring
     initializeConnectionStatus();
+  
+    // Initialize chat history system
+    initializeChatHistory();
   },
   { passive: true }
 );
@@ -300,6 +303,10 @@ function handleIncomingMessage(messageData: MessageData, chatMessages: HTMLEleme
     // Trigger Live2D animation based on metadata
     console.log('Triggering Live2D animation:', messageData.metadata.triggerAnimation);
   }
+
+  // Auto-save bot/system messages to chat history
+  // This ensures all messages (user and bot) are saved consistently
+  saveBotMessageToHistory(messageData);
 }
 
 /**
@@ -457,6 +464,290 @@ function initializeLive2DSettings(): void {
     updateLive2DModel(defaultPosX, defaultPosY, defaultScale);
     console.log('Auto-applied default Live2D settings');
   }, 2000); // Wait 2 seconds for model to load
+}
+
+/**
+ * Initialize comprehensive chat history system
+ */
+function initializeChatHistory(): void {
+  // Add chat history UI elements
+  addChatHistoryUI();
+
+  // Load initial chat history (20 latest messages)
+  loadInitialChatHistory();
+
+
+  // Initialize scroll to bottom functionality
+  initializeScrollToBottom();
+
+  console.log('Chat history system initialized');
+}
+
+/**
+ * Add chat history UI elements
+ */
+function addChatHistoryUI(): void {
+  const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+  if (!chatMessages) return;
+
+  // Add load more button at top
+  const loadMoreBtn = document.createElement('button');
+  loadMoreBtn.id = 'load-more-btn';
+  loadMoreBtn.className = 'load-more-btn';
+  loadMoreBtn.innerHTML = '📚 Load Previous Messages';
+  loadMoreBtn.style.display = 'none';
+  chatMessages.insertBefore(loadMoreBtn, chatMessages.firstChild);
+
+  // Add scroll to bottom button
+  const scrollToBottomBtn = document.createElement('button');
+  scrollToBottomBtn.id = 'scroll-to-bottom-btn';
+  scrollToBottomBtn.className = 'scroll-to-bottom-btn';
+  scrollToBottomBtn.innerHTML = '⬇️';
+  scrollToBottomBtn.title = 'Scroll to bottom';
+  scrollToBottomBtn.style.display = 'none';
+  document.body.appendChild(scrollToBottomBtn);
+
+
+  // Add event listeners
+  loadMoreBtn.addEventListener('click', loadMoreChatHistory);
+  scrollToBottomBtn.addEventListener('click', scrollToBottom);
+}
+
+/**
+ * Load initial 20 latest messages
+ */
+async function loadInitialChatHistory(): Promise<void> {
+  try {
+    const userId = getUserId();
+    const response = await fetch(`https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'load_history',
+        userId: userId,
+        limit: 20,
+        offset: 0
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Chat history not available (CORS or server issue)');
+      return;
+    }
+
+    const data = await response.json();
+    if (data.messages && data.messages.length > 0) {
+      // Clear existing messages and add history
+      const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+      const existingMessages = chatMessages.querySelectorAll('.message');
+      existingMessages.forEach(msg => {
+        if (!msg.classList.contains('typing')) {
+          msg.remove();
+        }
+      });
+
+      // Add history messages
+      data.messages.forEach((message: any) => {
+        addHistoricalMessage(message);
+      });
+
+      // Show load more button if there are more messages
+      if (data.hasMore) {
+        const loadMoreBtn = document.getElementById('load-more-btn') as HTMLElement;
+        if (loadMoreBtn) loadMoreBtn.style.display = 'block';
+      }
+
+      console.log('✅ Chat history loaded successfully');
+    } else {
+      console.log('ℹ️ No chat history available');
+    }
+  } catch (error) {
+    console.warn('Chat history loading failed (likely CORS):', error);
+    console.log('💡 To test: use testWebhookConnection() with proxy: true');
+  }
+}
+
+/**
+ * Load more chat history (previous messages)
+ */
+async function loadMoreChatHistory(): Promise<void> {
+  const loadMoreBtn = document.getElementById('load-more-btn') as HTMLElement;
+  if (!loadMoreBtn) return;
+
+  loadMoreBtn.textContent = 'Loading...';
+  (loadMoreBtn as HTMLButtonElement).disabled = true;
+
+  try {
+    const userId = getUserId();
+    const existingMessages = document.querySelectorAll('.message').length;
+
+    const response = await fetch(`https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'load_history',
+        userId: userId,
+        limit: 20,
+        offset: existingMessages
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Load more failed (CORS or server issue)');
+      return;
+    }
+
+    const data = await response.json();
+    if (data.messages && data.messages.length > 0) {
+      // Add messages at the top
+      const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+      const loadMoreBtn = document.getElementById('load-more-btn') as HTMLElement;
+
+      data.messages.reverse().forEach((message: any) => {
+        const messageElement = createHistoricalMessageElement(message);
+        chatMessages.insertBefore(messageElement, loadMoreBtn.nextSibling);
+      });
+
+      // Hide load more button if no more messages
+      if (!data.hasMore) {
+        loadMoreBtn.style.display = 'none';
+      }
+    } else {
+      loadMoreBtn.style.display = 'none';
+    }
+  } catch (error) {
+    console.warn('Failed to load more chat history (likely CORS):', error);
+    console.log('💡 To test: use testWebhookConnection() with proxy: true');
+  } finally {
+    loadMoreBtn.textContent = '📚 Load Previous Messages';
+    (loadMoreBtn as HTMLButtonElement).disabled = false;
+  }
+}
+
+
+
+/**
+ * Initialize scroll to bottom functionality
+ */
+function initializeScrollToBottom(): void {
+  const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+  const scrollToBottomBtn = document.getElementById('scroll-to-bottom-btn') as HTMLElement;
+
+  if (!chatMessages || !scrollToBottomBtn) return;
+
+  // Show/hide scroll to bottom button based on scroll position
+  chatMessages.addEventListener('scroll', () => {
+    const isNearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 100;
+    scrollToBottomBtn.style.display = isNearBottom ? 'none' : 'flex';
+  });
+
+  // Auto-scroll to bottom when sending messages
+  const originalSendMessage = (window as any).sendMessageWithAttachments;
+  if (originalSendMessage) {
+    (window as any).sendMessageWithAttachments = function(...args: any[]) {
+      originalSendMessage.apply(this, args);
+      setTimeout(() => scrollToBottom(), 100);
+    };
+  }
+}
+
+/**
+ * Scroll to bottom of chat
+ */
+function scrollToBottom(): void {
+  const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+  if (chatMessages) {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+}
+
+/**
+ * Add historical message to chat
+ */
+function addHistoricalMessage(message: any): void {
+  const chatMessages = document.getElementById('chat-messages') as HTMLElement;
+  if (!chatMessages) return;
+
+  const messageElement = createHistoricalMessageElement(message);
+  const loadMoreBtn = document.getElementById('load-more-btn');
+
+  if (loadMoreBtn && loadMoreBtn.style.display !== 'none') {
+    chatMessages.insertBefore(messageElement, loadMoreBtn.nextSibling);
+  } else {
+    chatMessages.appendChild(messageElement);
+  }
+}
+
+/**
+ * Create message element from historical data
+ */
+function createHistoricalMessageElement(message: any): HTMLElement {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${message.sender}`;
+  messageDiv.setAttribute('data-message-id', message.id);
+
+  // Add text content
+  if (message.content && message.content.trim()) {
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = message.content;
+    messageDiv.appendChild(textDiv);
+  }
+
+  // Add multimedia content
+  if (message.files && message.files.length > 0) {
+    const filesContainer = document.createElement('div');
+    filesContainer.className = 'message-files';
+
+    message.files.forEach((file: any) => {
+      const fileWrapper = document.createElement('div');
+      fileWrapper.className = 'message-file-wrapper';
+
+      if (file.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = file.data || file.url;
+        img.alt = file.name;
+        img.className = 'message-image';
+        fileWrapper.appendChild(img);
+      } else if (file.type.startsWith('audio/')) {
+        const audio = document.createElement('audio');
+        audio.src = file.data || file.url;
+        audio.controls = true;
+        audio.className = 'message-audio';
+        fileWrapper.appendChild(audio);
+      } else {
+        const fileIcon = document.createElement('div');
+        fileIcon.className = 'message-file-icon';
+        fileIcon.innerHTML = '📄';
+
+        const fileName = document.createElement('div');
+        fileName.className = 'message-file-name';
+        fileName.textContent = file.name;
+
+        const downloadBtn = document.createElement('a');
+        downloadBtn.href = file.data || file.url;
+        downloadBtn.download = file.name;
+        downloadBtn.className = 'message-file-download';
+        downloadBtn.textContent = 'Download';
+
+        fileWrapper.appendChild(fileIcon);
+        fileWrapper.appendChild(fileName);
+        fileWrapper.appendChild(downloadBtn);
+      }
+
+      filesContainer.appendChild(fileWrapper);
+    });
+
+    messageDiv.appendChild(filesContainer);
+  }
+
+  // Add timestamp
+  const timestamp = document.createElement('div');
+  timestamp.className = 'message-timestamp';
+  timestamp.textContent = new Date(message.timestamp).toLocaleTimeString();
+  messageDiv.appendChild(timestamp);
+
+  return messageDiv;
 }
 
 /**
@@ -1169,6 +1460,7 @@ async function sendCommandToWebhook(messageData: MessageData): Promise<boolean> 
     
     // Use the simplified payload structure that works with n8n (based on debug tests)
     const payload = {
+      action: 'save_message', // Add action for N8N workflow routing
       messageId: messageData.id,
       timestamp: messageData.timestamp,
       messageType: 'text', // Always use 'text' as messageType for command compatibility
@@ -1222,6 +1514,7 @@ async function sendToWebhook(messageData: MessageData): Promise<boolean> {
 
   try {
     const payload = {
+      action: 'save_message', // Add action for N8N workflow routing
       messageId: messageData.id,
       timestamp: messageData.timestamp,
       messageType: messageData.type,
@@ -1279,6 +1572,7 @@ async function sendToWebhookWithFile(messageData: MessageData, file: File): Prom
 
     // Create enhanced message data with file content
     const enhancedMessageData = {
+      action: 'save_message', // Add action for N8N workflow routing
       ...messageData,
       files: [{
         name: file.name,
@@ -1744,6 +2038,7 @@ async function sendMultipleFilesWithMessage(messageData: MessageData, files: Fil
 
     // Create enhanced message data with file content
     const enhancedMessageData = {
+      action: 'save_message', // Add action for N8N workflow routing
       ...messageData,
       messageType: activeTool ? 'command' : 'mixed',
       files: fileData,
@@ -1810,3 +2105,123 @@ function getSessionId(): string {
     { data: testBase64, type: 'image/png', name: 'test_image.png' }
   ]);
 };
+
+// Test function for webhook connection
+(window as any).testWebhookConnection = async (action = 'load_history', userId = 'test_user', useProxy = false) => {
+  console.log('🧪 Testing webhook connection...');
+  const webhookUrl = 'https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e';
+  const proxyUrl = 'https://cors-anywhere.herokuapp.com/' + webhookUrl;
+
+  const finalUrl = useProxy ? proxyUrl : webhookUrl;
+
+  console.log('📡 Webhook URL:', finalUrl);
+  console.log('🎯 Action:', action);
+  console.log('👤 User ID:', userId);
+  console.log('🌐 Using proxy:', useProxy);
+
+  const startTime = Date.now();
+
+  try {
+    const payload = {
+      action: action,
+      userId: userId,
+      limit: 20,
+      offset: 0
+    };
+
+    console.log('📦 Request payload:', payload);
+
+    const response = await fetch(finalUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const pingTime = Date.now() - startTime;
+    console.log('⚡ Response time:', pingTime + 'ms');
+    console.log('📊 Response status:', response.status);
+    console.log('📊 Response headers:', response.headers);
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Response data:', data);
+
+      if (data.messages) {
+        console.log('📝 Messages found:', data.messages.length);
+        data.messages.forEach((msg: any, index: number) => {
+          console.log(`💬 Message ${index + 1}:`, {
+            id: msg.id,
+            sender: msg.sender,
+            type: msg.messageType,
+            content: msg.content?.substring(0, 50) + (msg.content?.length > 50 ? '...' : ''),
+            timestamp: msg.timestamp
+          });
+        });
+      }
+
+      if (data.hasMore !== undefined) {
+        console.log('🔄 Has more messages:', data.hasMore);
+      }
+
+      console.log('🎉 Webhook test successful!');
+    } else {
+      const errorText = await response.text();
+      console.error('❌ Webhook error:', response.status, errorText);
+    }
+  } catch (error) {
+    const pingTime = Date.now() - startTime;
+    console.error('💥 Connection failed after', pingTime + 'ms');
+    console.error('❌ Error details:', error);
+
+    if (!useProxy) {
+      console.log('💡 Try using proxy: testWebhookConnection("load_history", "test_user", true)');
+    }
+  }
+};
+
+
+/**
+ * Save bot/system messages to chat history
+ */
+async function saveBotMessageToHistory(messageData: MessageData): Promise<void> {
+  try {
+    // Prepare payload for saving bot message
+    const payload = {
+      action: 'save_message',
+      messageId: messageData.id,
+      timestamp: messageData.timestamp,
+      messageType: messageData.type,
+      content: messageData.content,
+      userId: messageData.userId,
+      sender: messageData.sender,
+      // Include file data if present
+      files: messageData.files || [],
+      // Include metadata
+      metadata: {
+        ...messageData.metadata,
+        savedBySystem: true,
+        userAgent: navigator.userAgent,
+        sessionId: getSessionId(),
+        platform: 'web'
+      }
+    };
+
+    console.log('Auto-saving bot message to history:', payload);
+
+    const response = await fetch('https://n8n.nextray.online/webhook/26dafe26-1528-4f01-a9d7-17a3fc7e277e', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (response.ok) {
+      console.log('Bot message saved to history successfully');
+    } else {
+      console.warn('Failed to save bot message to history (CORS or server issue)');
+    }
+  } catch (error) {
+    console.warn('Bot message history save failed (likely CORS):', error);
+  }
+}
